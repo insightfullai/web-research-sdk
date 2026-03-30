@@ -1,3 +1,5 @@
+import { fileURLToPath } from "node:url";
+
 import { defineConfig } from "vite-plus";
 
 export default defineConfig({
@@ -7,7 +9,15 @@ export default defineConfig({
     format: ["esm", "cjs"],
     sourcemap: true,
   },
+  resolve: {
+    alias: {
+      "@insightfull/web-research-sdk": fileURLToPath(
+        new URL("../core/src/index.ts", import.meta.url),
+      ),
+    },
+  },
   test: {
-    include: ["src/**/*.test.ts"],
+    environment: "jsdom",
+    include: ["src/**/*.test.ts", "src/**/*.test.tsx"],
   },
 });

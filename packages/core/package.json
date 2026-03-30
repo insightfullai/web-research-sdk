@@ -1,32 +1,40 @@
 {
   "name": "@insightfull/web-research-sdk",
   "version": "0.1.0",
+  "description": "Core Insightfull Web Research SDK bridge and client runtime.",
+  "homepage": "https://github.com/insightfullai/web-research-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/insightfullai/web-research-sdk/issues"
+  },
   "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/insightfullai/web-research-sdk.git",
+    "directory": "packages/core"
+  },
   "files": [
     "dist"
   ],
   "type": "module",
   "sideEffects": false,
   "main": "./dist/index.cjs",
-  "module": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
   "exports": {
     ".": {
-      "types": "./dist/index.d.ts",
-      "import": "./dist/index.js",
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
       "require": "./dist/index.cjs"
     }
   },
   "publishConfig": {
-    "access": "public"
+    "access": "public",
+    "provenance": true
   },
   "scripts": {
     "build": "vp pack",
     "pack": "vp pack",
     "test": "vp test run",
     "clean": "rm -rf dist"
-  },
-  "dependencies": {
-    "@insightfull/web-research-sdk-shared": "workspace:*"
   }
 }

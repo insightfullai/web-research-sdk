@@ -4,6 +4,11 @@ on:
   push:
     branches:
       - main
+  workflow_dispatch:
+
+concurrency:
+  group: release-${{ github.ref }}
+  cancel-in-progress: false
 
 permissions:
   contents: write
@@ -12,25 +17,48 @@ permissions:
 
 jobs:
   release:
+    if: github.ref == 'refs/heads/main'
     runs-on: ubuntu-latest
+    env:
+      NPM_CONFIG_PROVENANCE: true
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
 
       - name: Setup vp
         uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: "22"
+          node-version: "24"
           cache: true
 
       - name: Install dependencies
         run: vp install --frozen-lockfile
 
+      - name: Static checks
+        run: vp check
+
+      - name: Unit tests
+        run: vp run -r test
+
+      - name: Build packages
+        run: vp run -r build
+
+      - name: Pack packages
+        run: vp run -r pack
+
+      - name: Verify package exports
+        run: node ./scripts/verify-package-exports.mjs
+
+      - name: Dry-run npm package contents
+        run: corepack yarn pack:dry-run
+
       - name: Create release PR or publish
         uses: changesets/action@v1
         with:
-          version: yarn version-packages
-          publish: yarn release
+          version: corepack yarn version-packages
+          publish: corepack yarn release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
           NPM_TOKEN: ${{ secrets.NPM_TOKEN }}

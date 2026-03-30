@@ -37,6 +37,9 @@ Hard constraint: this monorepo is **library-only** for now. We are intentionally
 5. **Optional integration package**: `@insightfull/web-research-sdk-react`.
 6. **Publishing strategy**: Changesets + GitHub Actions + npm token-based publish.
 7. **Versioning mode**: lockstep versions for core + react packages.
+8. **Interview core ownership**: remains private in Insightfull product systems (not open sourced).
+9. **Overlay integration architecture**: SDK host shell + private hosted iframe bridged via versioned protocol.
+10. **Canonical protocol spec**: `docs/plans/overlay-bridge-protocol-v1.md`.
 
 ---
 
@@ -62,6 +65,22 @@ web-research-sdk/
 - `packages/react` depends on `packages/core`; never the reverse.
 - `packages/shared` is private and never published.
 - Publishable packages ship typed `esm` + `cjs` artifacts from `vp pack`.
+
+### Overlay boundary (critical)
+
+- This public repo MUST NOT contain interview core logic.
+- Public repo responsibilities:
+  - host overlay shell behavior
+  - iframe lifecycle management
+  - secure bridge transport and schema validation
+- Private system responsibilities:
+  - interview orchestration and proprietary moderation logic
+  - private overlay app internals
+  - private runtime services
+
+All bridge behavior and message contracts are governed by:
+
+- `docs/plans/overlay-bridge-protocol-v1.md`
 
 ---
 
@@ -101,12 +120,14 @@ web-research-sdk/
 
 - Stabilize exported API in `@insightfull/web-research-sdk`
 - Define lifecycle/session/event contracts
+- Define bridge protocol contracts for SDK <-> private hosted overlay iframe
 - Add contract tests and backward-compatibility checks
 
 ### Required checks
 
 - Unit tests for API contracts
 - Type-level tests for exported API compatibility
+- Protocol schema contract tests against `overlay-bridge-protocol-v1.md`
 
 ---
 
@@ -117,11 +138,13 @@ web-research-sdk/
 - Build React integration layer in `@insightfull/web-research-sdk-react`
 - Keep React package additive and optional
 - Ensure no browser-global side effects from import
+- Implement React-friendly host shell + iframe bridge hooks (no proprietary interview logic)
 
 ### Required checks
 
 - Unit tests for React package utilities
 - Dependency boundary checks (`react` -> `core`, not inverse)
+- Iframe bridge handshake tests with mock private overlay app
 
 ---
 
@@ -165,6 +188,27 @@ web-research-sdk/
 - Run staged checks via `vp staged`
 - Keep staged check config in root `vite.config.ts`
 
+## Cross-project local integration (SDK repo + host app repo)
+
+- Development model assumes two local repositories running together:
+  - `web-research-sdk` (this public SDK monorepo)
+  - host application repo (private product app where iframe integration is exercised)
+- We will support two local validation modes:
+  - **Linked mode (fast iteration):** link local SDK packages into the host app during active feature work.
+  - **Packed mode (publish parity):** run `vp run -r pack` in this repo and install generated package artifacts into the host app to mirror real publish behavior.
+- Iframe-specific local smoke checks must validate:
+  - iframe boot/mount path and teardown behavior
+  - host <-> iframe messaging handshake and error handling
+  - overlay visibility/positioning and non-interference with host app UX
+- Protocol validation must follow the canonical bridge spec:
+  - `docs/plans/overlay-bridge-protocol-v1.md`
+- Minimum local protocol checks:
+  - strict origin validation
+  - unknown message rejection
+  - ack/retry behavior for required messages
+  - degraded fallback when iframe is unavailable
+- Add and maintain a repeatable "two-project local test" runbook in docs so engineers can execute this flow without ad-hoc setup.
+
 ---
 
 ## 6) Publishing and Versioning
@@ -191,6 +235,12 @@ web-research-sdk/
 4. **CI flakiness due to environment mismatch**
    - Mitigation: use `setup-vp`, frozen lockfile installs, and pinned Node major version.
 
+5. **Boundary drift (private interview logic leaks into OSS repo)**
+   - Mitigation: CODEOWNERS + ADR + explicit architecture guardrails and review checks.
+
+6. **Bridge security regressions (origin/schema/token handling)**
+   - Mitigation: protocol contract tests + security checklist from bridge spec as release gate.
+
 ---
 
 ## 8) Immediate Next Actions (Week 1)
@@ -198,15 +248,19 @@ web-research-sdk/
 1. Complete scaffold PR with root config + package skeletons.
 2. Validate CI green on clean clone.
 3. Add first real core lifecycle interfaces.
-4. Draft React overlay integration surface and examples in docs.
-5. Add first Changesets entry and release dry-run.
+4. Ratify `docs/plans/overlay-bridge-protocol-v1.md` with SDK + private overlay owners.
+5. Draft React overlay integration surface and examples in docs.
+6. Add first Changesets entry and release dry-run.
+7. Write the cross-project local integration runbook for iframe testing against the host app repo.
 
 ---
 
 ## 9) Completion Criteria for “Execution Plan Accepted”
 
 - [ ] Team agrees on package boundaries (`core`, `react`, `shared`)
+- [ ] Team agrees on OSS/private overlay boundary and ownership model
 - [ ] Library-only scope (no apps) is accepted
 - [ ] `vp` command workflow is agreed and documented
 - [ ] CI baseline and release workflow are approved
+- [ ] Bridge Protocol v1 is approved by SDK + private overlay/backend owners
 - [ ] Work breakdown is implementation-ready for delegated engineers

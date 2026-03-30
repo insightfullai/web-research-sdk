@@ -6,6 +6,5 @@
   "linked": [],
   "access": "public",
   "baseBranch": "main",
-  "updateInternalDependencies": "patch",
-  "ignore": ["@insightfull/web-research-sdk-shared"]
+  "updateInternalDependencies": "patch"
 }

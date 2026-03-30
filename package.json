@@ -12,8 +12,11 @@
     "test": "vp run -r test",
     "build": "vp run -r build",
     "pack": "vp run -r pack",
+    "pack:verify-exports": "node ./scripts/verify-package-exports.mjs",
+    "pack:dry-run": "npm pack --dry-run --json --workspace @insightfull/web-research-sdk && npm pack --dry-run --json --workspace @insightfull/web-research-sdk-react",
     "clean": "vp run -r clean",
     "ready": "vp check && vp run -r test && vp run -r build",
+    "release:check": "vp check && vp run -r test && vp run -r build && vp run -r pack && node ./scripts/verify-package-exports.mjs && npm pack --dry-run --json --workspace @insightfull/web-research-sdk && npm pack --dry-run --json --workspace @insightfull/web-research-sdk-react",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "changeset publish"
@@ -29,7 +32,7 @@
     "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
   },
   "engines": {
-    "node": ">=22.12.0"
+    "node": ">=24.0.0"
   },
   "packageManager": "yarn@4.9.2"
 }

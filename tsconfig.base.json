@@ -13,6 +13,11 @@
     "esModuleInterop": true,
     "forceConsistentCasingInFileNames": true,
     "skipLibCheck": true,
-    "resolveJsonModule": true
+    "resolveJsonModule": true,
+    "paths": {
+      "@insightfull/web-research-sdk": ["./packages/core/src/index.ts"],
+      "@insightfull/web-research-sdk-react": ["./packages/react/src/index.ts"],
+      "@insightfull/web-research-sdk-shared": ["./packages/shared/src/index.ts"]
+    }
   }
 }

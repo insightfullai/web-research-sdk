@@ -15,7 +15,7 @@ jobs:
       - name: Setup vp
         uses: voidzero-dev/setup-vp@v1
         with:
-          node-version: "22"
+          node-version: "24"
           cache: true
 
       - name: Install dependencies
@@ -29,3 +29,12 @@ jobs:
 
       - name: Build packages
         run: vp run -r build
+
+      - name: Pack packages
+        run: vp run -r pack
+
+      - name: Verify package exports
+        run: node ./scripts/verify-package-exports.mjs
+
+      - name: Dry-run npm package contents
+        run: corepack yarn pack:dry-run

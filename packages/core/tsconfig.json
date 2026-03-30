@@ -1,4 +1,9 @@
 {
   "extends": "../../tsconfig.base.json",
+  "compilerOptions": {
+    "paths": {
+      "@insightfull/web-research-sdk-shared": ["../shared/src/index.ts"]
+    }
+  },
   "include": ["./src"]
 }
