@@ -512,7 +512,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk-react@workspace:packages/react"
   dependencies:
-    "@insightfull/web-research-sdk": "workspace:*"
+    "@insightfull/web-research-sdk": "npm:^0.1.0"
     "@types/react": "npm:^19.2.2"
     "@types/react-dom": "npm:^19.2.2"
     jsdom: "npm:^26.1.0"
@@ -522,17 +522,15 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@insightfull/web-research-sdk-shared@workspace:*, @insightfull/web-research-sdk-shared@workspace:packages/shared":
+"@insightfull/web-research-sdk-shared@workspace:packages/shared":
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk-shared@workspace:packages/shared"
   languageName: unknown
   linkType: soft
 
-"@insightfull/web-research-sdk@workspace:*, @insightfull/web-research-sdk@workspace:packages/core":
+"@insightfull/web-research-sdk@npm:^0.1.0, @insightfull/web-research-sdk@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk@workspace:packages/core"
-  dependencies:
-    "@insightfull/web-research-sdk-shared": "workspace:*"
   languageName: unknown
   linkType: soft
 
