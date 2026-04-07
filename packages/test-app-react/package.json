@@ -1,0 +1,24 @@
+{
+  "name": "@insightfull/web-research-sdk-test-app-react",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "vite",
+    "build": "vite build",
+    "test": "yarn node -e \"process.exit(0)\"",
+    "e2e": "playwright test",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "react": "^19.2.0",
+    "react-dom": "^19.2.0"
+  },
+  "devDependencies": {
+    "@playwright/test": "^1.54.2",
+    "@types/react": "^19.2.2",
+    "@types/react-dom": "^19.2.2",
+    "vite": "^7.1.0",
+    "vitest": "npm:@voidzero-dev/vite-plus-test@latest"
+  }
+}

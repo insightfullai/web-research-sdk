@@ -114,6 +114,60 @@ export interface WebResearchClientOptions {
   endpoint?: string;
   sessionId?: string;
   bridge?: WebResearchBridgeOptions;
+  transport?: WebResearchTransport;
+  batching?: WebResearchBatchingOptions;
+}
+
+export interface TrackedSdkEvent extends SdkEvent {
+  id: string;
+  sessionId: string;
+  source: "manual" | "browser";
+  capturedAt: string;
+}
+
+export interface WebResearchEventBatch {
+  session: SessionMetadata;
+  events: readonly TrackedSdkEvent[];
+  reason: string;
+}
+
+export interface WebResearchTransportCompletePayload {
+  session: SessionMetadata;
+  reason: string;
+  sentAt: string;
+}
+
+export interface WebResearchTransport {
+  send: (batch: WebResearchEventBatch) => Promise<void> | void;
+  complete?: (payload: WebResearchTransportCompletePayload) => Promise<void> | void;
+}
+
+export interface WebResearchBatchingOptions {
+  batchSize?: number;
+  flushIntervalMs?: number;
+}
+
+export interface StartBrowserSessionOptions {
+  transport?: WebResearchTransport;
+  batching?: WebResearchBatchingOptions;
+  window?: Window;
+  document?: Document;
+  captureInitialNavigation?: boolean;
+}
+
+export interface BrowserSessionSnapshot {
+  active: boolean;
+  capturedEvents: number;
+  bufferedEvents: number;
+  lastFlushAt?: string;
+}
+
+export interface BrowserSessionController {
+  start: () => void;
+  flush: (reason?: string) => Promise<void>;
+  complete: (reason?: string) => Promise<void>;
+  destroy: (reason?: string) => Promise<void>;
+  getSnapshot: () => BrowserSessionSnapshot;
 }
 
 export interface BridgeRuntimeDiagnostic {
@@ -179,7 +233,21 @@ export interface OverlayBridgeController {
 export interface WebResearchClient {
   getSession: () => SessionMetadata;
   track: (event: SdkEvent) => Promise<void>;
+  flush: (reason?: string) => Promise<void>;
+  complete: (reason?: string) => Promise<void>;
+  startBrowserSession: (options?: StartBrowserSessionOptions) => BrowserSessionController;
   getLifecycleState: () => SdkLifecycleState;
   bridge: OverlayBridgeController;
   destroy: (reason?: string) => void;
+}
+
+export interface CallbackTransportOptions {
+  onBatch: (batch: WebResearchEventBatch) => Promise<void> | void;
+  onComplete?: (payload: WebResearchTransportCompletePayload) => Promise<void> | void;
+}
+
+export interface PostMessageTransportOptions {
+  targetWindow: Pick<Window, "postMessage">;
+  targetOrigin: string;
+  messageType?: string;
 }

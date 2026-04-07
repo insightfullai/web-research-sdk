@@ -26,6 +26,9 @@ yarn add @insightfull/web-research-sdk @insightfull/web-research-sdk-react react
 The public core entrypoint exports:
 
 - `createWebResearchClient`
+- `createCallbackTransport`
+- `createPostMessageTransport`
+- `BrowserWebResearchSession`
 - `createBridgeMessageEnvelope`
 - `OverlayBridgeRuntime`
 - `SUPPORTED_BRIDGE_VERSIONS`
@@ -71,6 +74,30 @@ const client = createWebResearchClient({
 
 client.bridge.mount();
 ```
+
+## Browser Capture Runtime
+
+The core client can now start a minimal live browser capture session with a pluggable transport:
+
+```ts
+import { createCallbackTransport, createWebResearchClient } from "@insightfull/web-research-sdk";
+
+const client = createWebResearchClient({ apiKey: "public-sdk-key" });
+
+client.startBrowserSession({
+  transport: createCallbackTransport({
+    onBatch(batch) {
+      console.log(batch.events);
+    },
+  }),
+  batching: {
+    batchSize: 20,
+    flushIntervalMs: 1000,
+  },
+});
+```
+
+The runtime captures click, input, change, submit, and navigation events with privacy-safe defaults (for example, no raw element text capture, minimized element descriptors, and navigation URLs redacted to origin + pathname while preserving `hasQuery`/`hasHash` flags), and supports `client.flush()`, `client.complete()`, and `client.destroy()`.
 
 ## Notes
 
