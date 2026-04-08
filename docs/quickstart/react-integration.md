@@ -27,7 +27,7 @@ import {
 } from "@insightfull/web-research-sdk-react";
 
 const client = createReactWebResearchClient({
-  apiKey: "public-sdk-key",
+  environment: "prod",
   bridge: {
     iframeOrigin: "https://overlay.example.com",
     parentOrigin: window.location.origin,

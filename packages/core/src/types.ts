@@ -9,6 +9,7 @@ import type {
   OverlayInitConsent,
   OverlayInitContext,
   OverlayInitUiConfig,
+  RuntimeEnvironment,
   SessionMetadata,
   SdkEvent,
   SdkLifecycleState,
@@ -25,6 +26,7 @@ export type {
   OverlayInitConsent,
   OverlayInitContext,
   OverlayInitUiConfig,
+  RuntimeEnvironment,
   SessionMetadata,
   SdkEvent,
   SdkLifecycleState,
@@ -110,7 +112,9 @@ export interface WebResearchBridgeOptions {
 }
 
 export interface WebResearchClientOptions {
-  apiKey: string;
+  environment: RuntimeEnvironment;
+  /** @deprecated This field is unused and retained for compatibility only. */
+  apiKey?: string;
   endpoint?: string;
   sessionId?: string;
   bridge?: WebResearchBridgeOptions;

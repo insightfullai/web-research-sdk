@@ -95,6 +95,8 @@ export const BRIDGE_RETRY_POLICY = {
   backoffMs: [300, 800] as const,
 } as const;
 
+export const RUNTIME_ENVIRONMENTS = ["dev", "staging", "prod"] as const;
+
 export type BridgeNamespace = typeof BRIDGE_NAMESPACE;
 export type BridgeVersion = typeof BRIDGE_VERSION;
 export type BridgeCapability = (typeof BRIDGE_CAPABILITIES)[number];
@@ -103,6 +105,7 @@ export type OverlayLifecycleState = (typeof OVERLAY_LIFECYCLE_STATES)[number];
 export type BridgeErrorCode = (typeof BRIDGE_ERROR_CODES)[number];
 export type BridgeMessageType = (typeof BRIDGE_MESSAGE_TYPES)[number];
 export type BridgeMessageDirection = (typeof BRIDGE_MESSAGE_SPECS)[BridgeMessageType]["direction"];
+export type RuntimeEnvironment = (typeof RUNTIME_ENVIRONMENTS)[number];
 
 export type OverlayTaskStatus = "pending" | "active" | "completed" | "abandoned";
 export type OverlayRouteType = "history" | "hash" | "full_reload";
@@ -133,6 +136,7 @@ export type BridgeDiagnosticLevel = "info" | "warn" | "error";
 export interface SessionMetadata {
   sessionId: string;
   startedAt: string;
+  environment: RuntimeEnvironment;
 }
 
 export interface SdkEvent {

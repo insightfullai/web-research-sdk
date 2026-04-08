@@ -21,7 +21,7 @@ function App() {
 
   if (!clientRef.current) {
     clientRef.current = createWebResearchClient({
-      apiKey: "local-test-key",
+      environment: "dev",
       sessionId: "local-session",
       transport: createCallbackTransport({
         onBatch: (batch) => {

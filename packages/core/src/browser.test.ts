@@ -32,7 +32,7 @@ describe("BrowserWebResearchSession", () => {
 
     const batches: WebResearchEventBatch[] = [];
     const client = createWebResearchClient({
-      apiKey: "test-key",
+      environment: "dev",
       transport: createCallbackTransport({
         onBatch: (batch) => {
           batches.push(batch);
@@ -63,6 +63,7 @@ describe("BrowserWebResearchSession", () => {
     await session.flush("test_flush");
 
     expect(batches).toHaveLength(1);
+    expect(batches[0]?.session.environment).toBe("dev");
     expect(batches[0]?.reason).toBe("test_flush");
     expect(batches[0]?.events.map((event) => event.name)).toEqual([
       "navigation",
@@ -115,7 +116,7 @@ describe("BrowserWebResearchSession", () => {
 
     const batches: WebResearchEventBatch[] = [];
     const client = createWebResearchClient({
-      apiKey: "test-key",
+      environment: "dev",
       transport: createCallbackTransport({
         onBatch: (batch) => {
           batches.push(batch);
@@ -155,7 +156,7 @@ describe("BrowserWebResearchSession", () => {
     const completions: WebResearchTransportCompletePayload[] = [];
     const batches: WebResearchEventBatch[] = [];
     const client = createWebResearchClient({
-      apiKey: "test-key",
+      environment: "dev",
       transport: createCallbackTransport({
         onBatch: (batch) => {
           batches.push(batch);
@@ -180,6 +181,7 @@ describe("BrowserWebResearchSession", () => {
     expect(batches).toHaveLength(1);
     expect(batches[0]?.events).toHaveLength(1);
     expect(completions).toHaveLength(1);
+    expect(completions[0]?.session.environment).toBe("dev");
     expect(completions[0]).toMatchObject({ reason: "session_end" });
     expect(session.getSnapshot()).toMatchObject({ active: false, capturedEvents: 1 });
   });
@@ -189,7 +191,7 @@ describe("BrowserWebResearchSession", () => {
 
     const batches: WebResearchEventBatch[] = [];
     const client = createWebResearchClient({
-      apiKey: "test-key",
+      environment: "dev",
       transport: createCallbackTransport({
         onBatch: (batch) => {
           batches.push(batch);
@@ -222,7 +224,7 @@ describe("BrowserWebResearchSession", () => {
 
     const batches: WebResearchEventBatch[] = [];
     const client = createWebResearchClient({
-      apiKey: "test-key",
+      environment: "dev",
       transport: createCallbackTransport({
         onBatch: (batch) => {
           batches.push(batch);
@@ -257,7 +259,7 @@ describe("BrowserWebResearchSession", () => {
 
     const batches: WebResearchEventBatch[] = [];
     const client = createWebResearchClient({
-      apiKey: "test-key",
+      environment: "dev",
       transport: createCallbackTransport({
         onBatch: (batch) => {
           batches.push(batch);
@@ -315,6 +317,7 @@ describe("WebResearchEventQueue", () => {
       session: {
         sessionId: "session-1",
         startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "dev",
       },
       transport: {
         send: sendSpy,
@@ -348,6 +351,7 @@ describe("WebResearchEventQueue", () => {
       session: {
         sessionId: "session-1",
         startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "dev",
       },
       transport: {
         send: async (batch) => {
@@ -384,6 +388,7 @@ describe("WebResearchEventQueue", () => {
       session: {
         sessionId: "session-1",
         startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "dev",
       },
       transport: {
         send: (batch) => {
@@ -411,6 +416,7 @@ describe("WebResearchEventQueue", () => {
       session: {
         sessionId: "session-1",
         startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "dev",
       },
       transport: {
         send: () => undefined,
@@ -446,7 +452,7 @@ describe("DefaultWebResearchClient", () => {
 
     const completions: WebResearchTransportCompletePayload[] = [];
     const client = createWebResearchClient({
-      apiKey: "test-key",
+      environment: "dev",
       transport: createCallbackTransport({
         onBatch: () => undefined,
         onComplete: (payload) => {
@@ -479,7 +485,7 @@ describe("DefaultWebResearchClient", () => {
     window.addEventListener("unhandledrejection", listener);
 
     const client = createWebResearchClient({
-      apiKey: "test-key",
+      environment: "dev",
       transport: {
         send: () => undefined,
         complete: async () => {
@@ -515,7 +521,7 @@ describe("DefaultWebResearchClient", () => {
       },
     });
     const client = createWebResearchClient({
-      apiKey: "test-key",
+      environment: "dev",
       transport: manualTransport,
       batching: {
         batchSize: 50,
@@ -543,7 +549,7 @@ describe("DefaultWebResearchClient", () => {
     });
     const browserComplete = vi.fn(async () => undefined);
     const client = createWebResearchClient({
-      apiKey: "test-key",
+      environment: "dev",
       transport: {
         send: () => undefined,
         complete: manualComplete,

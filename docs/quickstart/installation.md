@@ -42,7 +42,7 @@ Example:
 import { createWebResearchClient } from "@insightfull/web-research-sdk";
 
 const client = createWebResearchClient({
-  apiKey: "public-sdk-key",
+  environment: "prod",
   sessionId: "session-123",
   bridge: {
     iframeOrigin: "https://overlay.example.com",
@@ -82,7 +82,7 @@ The core client can now start a minimal live browser capture session with a plug
 ```ts
 import { createCallbackTransport, createWebResearchClient } from "@insightfull/web-research-sdk";
 
-const client = createWebResearchClient({ apiKey: "public-sdk-key" });
+const client = createWebResearchClient({ environment: "prod" });
 
 client.startBrowserSession({
   transport: createCallbackTransport({
@@ -98,6 +98,8 @@ client.startBrowserSession({
 ```
 
 The runtime captures click, input, change, submit, and navigation events with privacy-safe defaults (for example, no raw element text capture, minimized element descriptors, and navigation URLs redacted to origin + pathname while preserving `hasQuery`/`hasHash` flags), and supports `client.flush()`, `client.complete()`, and `client.destroy()`.
+
+Set `environment` to `"dev" | "staging" | "prod"` so every session payload is attributed to the correct runtime tier during ingestion.
 
 ## Notes
 

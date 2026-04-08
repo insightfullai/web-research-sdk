@@ -1,4 +1,9 @@
-import type { SdkEvent, SessionMetadata } from "./protocol";
+import {
+  RUNTIME_ENVIRONMENTS,
+  type RuntimeEnvironment,
+  type SdkEvent,
+  type SessionMetadata,
+} from "./protocol";
 
 import { BrowserWebResearchSession } from "./browser";
 import { OverlayBridgeRuntime } from "./bridge";
@@ -13,6 +18,14 @@ import type {
 } from "./types";
 
 const DEFAULT_ENDPOINT = "https://api.insightfull.ai/web-research";
+
+function isRuntimeEnvironment(value: unknown): value is RuntimeEnvironment {
+  return typeof value === "string" && RUNTIME_ENVIRONMENTS.includes(value as RuntimeEnvironment);
+}
+
+function isRecord(value: unknown): value is Record<string, unknown> {
+  return typeof value === "object" && value !== null;
+}
 
 class DefaultWebResearchClient implements WebResearchClient {
   private readonly session: SessionMetadata;
@@ -32,6 +45,7 @@ class DefaultWebResearchClient implements WebResearchClient {
     this.session = {
       sessionId: options.sessionId ?? crypto.randomUUID(),
       startedAt: new Date().toISOString(),
+      environment: options.environment,
     };
     this.bridge = new OverlayBridgeRuntime({
       sessionId: this.session.sessionId,
@@ -207,8 +221,12 @@ class DefaultWebResearchClient implements WebResearchClient {
 }
 
 export function createWebResearchClient(options: WebResearchClientOptions): WebResearchClient {
-  if (!options.apiKey) {
-    throw new Error("apiKey is required");
+  if (!isRecord(options)) {
+    throw new Error("createWebResearchClient options must be an object");
+  }
+
+  if (!isRuntimeEnvironment(options.environment)) {
+    throw new Error('environment must be one of "dev", "staging", or "prod"');
   }
 
   return new DefaultWebResearchClient(options);

@@ -47,7 +47,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 function createClient(overrides?: Partial<Parameters<typeof createWebResearchClient>[0]>) {
   return createWebResearchClient({
-    apiKey: "test-key",
+    environment: "dev",
     sessionId: "session-1",
     bridge: {
       iframeOrigin: "https://overlay.example.com",
@@ -152,9 +152,10 @@ describe("WebResearchProvider and hooks", () => {
   });
 
   it("can create a client from options", () => {
-    const client = createReactWebResearchClient({ apiKey: "another-key" });
+    const client = createReactWebResearchClient({ environment: "staging" });
 
     expect(client.getSession().sessionId).toHaveLength(36);
+    expect(client.getSession().environment).toBe("staging");
   });
 
   it("supports explicit-client hooks outside WebResearchProvider", () => {
