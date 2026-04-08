@@ -10,7 +10,12 @@ import {
   type Ref,
 } from "react";
 
-import type { AnyBridgeMessage, WebResearchClient } from "@insightfull/web-research-sdk";
+import type {
+  AnyBridgeMessage,
+  OverlayBridgeController,
+  OverlayCustomization,
+  WebResearchClient,
+} from "@insightfull/web-research-sdk";
 
 import {
   useMaybeWebResearchClient,
@@ -19,6 +24,7 @@ import {
 } from "./context";
 
 type OverlayIframeElement = HTMLIFrameElement;
+type OverlayBridgeCustomizationController = Pick<OverlayBridgeController, "updateCustomization">;
 
 type OverlayIframeBaseProps = Omit<
   IframeHTMLAttributes<OverlayIframeElement>,
@@ -29,6 +35,7 @@ export interface OverlayBridgeHostOptions {
   client?: WebResearchClient;
   iframeRef?: MutableRefObject<OverlayIframeElement | null>;
   src: string;
+  customization?: OverlayCustomization;
   targetOrigin?: string;
   autoBeginHandshake?: boolean;
   terminateOnUnmount?: boolean;
@@ -94,7 +101,9 @@ export function useOverlayBridgeHost(options: OverlayBridgeHostOptions): Overlay
 
   const snapshot = useOverlayBridgeSnapshot(client);
   const status = useOverlayBridgeStatus(client);
+  const bridge = client.bridge;
   const internalIframeRef = useRef<OverlayIframeElement | null>(null);
+  const lastCustomizationRef = useRef<OverlayCustomization | undefined>(undefined);
 
   const mergedRef = useCallback(
     (node: OverlayIframeElement | null) => {
@@ -122,6 +131,26 @@ export function useOverlayBridgeHost(options: OverlayBridgeHostOptions): Overlay
     },
     [targetOrigin],
   );
+
+  useEffect(() => {
+    if (!status.isReady || options.customization === undefined) {
+      lastCustomizationRef.current = undefined;
+      return;
+    }
+
+    if (lastCustomizationRef.current === options.customization) {
+      return;
+    }
+
+    const customizationBridge = bridge as Partial<OverlayBridgeCustomizationController>;
+
+    if (typeof customizationBridge.updateCustomization !== "function") {
+      return;
+    }
+
+    customizationBridge.updateCustomization(options.customization, { dispatch: postMessage });
+    lastCustomizationRef.current = options.customization;
+  }, [bridge, options.customization, postMessage, status.isReady]);
 
   useEffect(() => {
     if (typeof window === "undefined") {

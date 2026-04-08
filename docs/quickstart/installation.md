@@ -63,6 +63,19 @@ const client = createWebResearchClient({
         defaultPosition: "bottom-right",
         showAiPersona: true,
         theme: "system",
+        customization: {
+          persona: "obsidian",
+          typography: {
+            fontFamily: "'Sora', sans-serif",
+            headingFontFamily: "'Space Grotesk', sans-serif",
+          },
+          tailwindTheme: {
+            primary: "#14532d",
+            primaryForeground: "#f0fdf4",
+            background: "#ffffff",
+            foreground: "#052e16",
+          },
+        },
       },
       consent: {
         mode: "required",
@@ -73,6 +86,33 @@ const client = createWebResearchClient({
 });
 
 client.bridge.mount();
+```
+
+## Overlay customization
+
+- Persona options: `obsidian | mana | opal | halo | glint | command`
+- `tailwindTheme` supports partial overrides for: `primary`, `primaryForeground`, `secondary`, `secondaryForeground`, `accent`, `accentForeground`, `background`, `foreground`, `muted`, `mutedForeground`, `border`, `ring`, `radius`, `fontFamily`, `headingFontFamily`
+- Runtime updates are partial merges; pass `null` on a key to clear that override
+- Voice settings are not part of `OverlayCustomization` (voice remains negotiated via media/capability flow)
+
+Runtime update example:
+
+```ts
+client.bridge.updateCustomization(
+  {
+    persona: "glint",
+    tailwindTheme: {
+      primary: "#0f766e",
+      primaryForeground: "#f0fdfa",
+      accent: null,
+    },
+  },
+  {
+    dispatch: (message) => {
+      iframe.contentWindow?.postMessage(message, "https://overlay.example.com");
+    },
+  },
+);
 ```
 
 ## Browser Capture Runtime

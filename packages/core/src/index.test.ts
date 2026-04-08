@@ -475,6 +475,44 @@ describe("OverlayBridgeRuntime", () => {
     expect(runtime.getSnapshot().pendingAckMessageIds).toHaveLength(0);
     expect(runtime.getSnapshot().diagnostics.at(-1)).toMatchObject({ code: "BRG_ACK_TIMEOUT" });
   });
+
+  it("sends overlay:customization_update through updateCustomization helper", () => {
+    const runtime = createTestRuntime();
+    const dispatched: AnyBridgeMessage[] = [];
+
+    const message = runtime.updateCustomization(
+      {
+        persona: "command",
+        tailwindTheme: {
+          primary: "#111827",
+          primaryForeground: null,
+        },
+      },
+      {
+        dispatch: (outgoing) => dispatched.push(outgoing),
+      },
+    );
+
+    expect(message.type).toBe("overlay:customization_update");
+    expect(message.requiresAck).toBe(true);
+    expect(message.payload.customization).toEqual({
+      persona: "command",
+      tailwindTheme: {
+        primary: "#111827",
+        primaryForeground: null,
+      },
+    });
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]).toMatchObject({
+      type: "overlay:customization_update",
+      payload: {
+        customization: {
+          persona: "command",
+        },
+      },
+    });
+    expect(runtime.getSnapshot().pendingAckMessageIds).toContain(message.messageId);
+  });
 });
 
 describe("type compatibility", () => {

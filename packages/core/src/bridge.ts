@@ -10,6 +10,7 @@ import {
   type BridgeMessagePayloadMap,
   type BridgeMessageType,
   type BridgeVersion,
+  type OverlayCustomization,
 } from "./protocol";
 import { validateBridgeMessage } from "./validation";
 
@@ -315,6 +316,17 @@ export class OverlayBridgeRuntime implements OverlayBridgeController {
     }
 
     return envelope;
+  }
+
+  public updateCustomization(
+    customization: OverlayCustomization,
+    options?: SendBridgeMessageOptions,
+  ): BridgeMessage<"overlay:customization_update"> {
+    return this.sendMessage(
+      "overlay:customization_update",
+      { customization },
+      options,
+    );
   }
 
   public receiveMessage(

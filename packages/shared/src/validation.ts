@@ -18,6 +18,25 @@ type UnknownRecord = Record<string, unknown>;
 const CAPABILITY_SET = new Set<string>(BRIDGE_CAPABILITIES);
 const MESSAGE_TYPE_SET = new Set<string>(BRIDGE_MESSAGE_TYPES);
 const ERROR_CODE_SET = new Set<string>(BRIDGE_ERROR_CODES);
+const OVERLAY_PERSONA_VARIANTS = ["obsidian", "mana", "opal", "halo", "glint", "command"];
+const OVERLAY_TYPOGRAPHY_KEYS = ["fontFamily", "headingFontFamily"] as const;
+const OVERLAY_TAILWIND_THEME_KEYS = [
+  "primary",
+  "primaryForeground",
+  "secondary",
+  "secondaryForeground",
+  "accent",
+  "accentForeground",
+  "background",
+  "foreground",
+  "muted",
+  "mutedForeground",
+  "border",
+  "ring",
+  "radius",
+  "fontFamily",
+  "headingFontFamily",
+] as const;
 
 function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -81,6 +100,23 @@ function validateBoolean(
 ): value is boolean {
   if (!isBoolean(value)) {
     pushIssue(issues, "BRG_SCHEMA_INVALID", path, "Expected boolean");
+    return false;
+  }
+
+  return true;
+}
+
+function validateStringOrNull(
+  value: unknown,
+  path: string,
+  issues: BridgeValidationIssue[],
+): value is string | null {
+  if (value === null) {
+    return true;
+  }
+
+  if (typeof value !== "string") {
+    pushIssue(issues, "BRG_SCHEMA_INVALID", path, "Expected string or null");
     return false;
   }
 
@@ -214,6 +250,14 @@ function validateOverlayInitPayload(payload: unknown, issues: BridgeValidationIs
           issues,
         ) && valid;
     }
+    if (payload.uiConfig.customization !== undefined) {
+      valid =
+        validateOverlayCustomization(
+          payload.uiConfig.customization,
+          "payload.uiConfig.customization",
+          issues,
+        ) && valid;
+    }
   }
 
   if (!validateStringRecord(payload.consent, "payload.consent", issues)) {
@@ -232,6 +276,62 @@ function validateOverlayInitPayload(payload: unknown, issues: BridgeValidationIs
   }
 
   return valid;
+}
+
+function validateOverlayCustomization(
+  payload: unknown,
+  path: string,
+  issues: BridgeValidationIssue[],
+): boolean {
+  if (!validateStringRecord(payload, path, issues)) {
+    return false;
+  }
+
+  let valid = true;
+  if (payload.persona !== undefined) {
+    valid = validateEnum(payload.persona, OVERLAY_PERSONA_VARIANTS, `${path}.persona`, issues) && valid;
+  }
+
+  if (payload.typography !== undefined) {
+    if (!validateStringRecord(payload.typography, `${path}.typography`, issues)) {
+      valid = false;
+    } else {
+      for (const key of OVERLAY_TYPOGRAPHY_KEYS) {
+        if (payload.typography[key] !== undefined) {
+          valid =
+            validateStringOrNull(payload.typography[key], `${path}.typography.${key}`, issues) &&
+            valid;
+        }
+      }
+    }
+  }
+
+  if (payload.tailwindTheme !== undefined) {
+    if (!validateStringRecord(payload.tailwindTheme, `${path}.tailwindTheme`, issues)) {
+      valid = false;
+    } else {
+      for (const key of OVERLAY_TAILWIND_THEME_KEYS) {
+        if (payload.tailwindTheme[key] !== undefined) {
+          valid =
+            validateStringOrNull(payload.tailwindTheme[key], `${path}.tailwindTheme.${key}`, issues) &&
+            valid;
+        }
+      }
+    }
+  }
+
+  return valid;
+}
+
+function validateOverlayCustomizationUpdatePayload(
+  payload: unknown,
+  issues: BridgeValidationIssue[],
+): boolean {
+  if (!validateStringRecord(payload, "payload", issues)) {
+    return false;
+  }
+
+  return validateOverlayCustomization(payload.customization, "payload.customization", issues);
 }
 
 function validateOverlayTaskUpdatePayload(
@@ -523,6 +623,7 @@ const PAYLOAD_VALIDATORS: {
   [TType in BridgeMessageType]: (payload: unknown, issues: BridgeValidationIssue[]) => boolean;
 } = {
   "overlay:init": validateOverlayInitPayload,
+  "overlay:customization_update": validateOverlayCustomizationUpdatePayload,
   "overlay:task_update": validateOverlayTaskUpdatePayload,
   "overlay:navigation_context": validateOverlayNavigationContextPayload,
   "overlay:session_state": validateOverlaySessionStatePayload,

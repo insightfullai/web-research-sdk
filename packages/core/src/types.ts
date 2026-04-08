@@ -9,6 +9,11 @@ import type {
   OverlayInitConsent,
   OverlayInitContext,
   OverlayInitUiConfig,
+  OverlayCustomization,
+  OverlayCustomizationUpdatePayload,
+  OverlayPersonaVariant,
+  OverlayTailwindThemeOverrides,
+  OverlayTypographyConfig,
   RuntimeEnvironment,
   SessionMetadata,
   SdkEvent,
@@ -26,6 +31,11 @@ export type {
   OverlayInitConsent,
   OverlayInitContext,
   OverlayInitUiConfig,
+  OverlayCustomization,
+  OverlayCustomizationUpdatePayload,
+  OverlayPersonaVariant,
+  OverlayTailwindThemeOverrides,
+  OverlayTypographyConfig,
   RuntimeEnvironment,
   SessionMetadata,
   SdkEvent,
@@ -69,6 +79,7 @@ export interface CreateBridgeMessageEnvelopeOptions<TType extends BridgeMessageT
 export type SdkToOverlayMessageType = Extract<
   BridgeMessageType,
   | "overlay:init"
+  | "overlay:customization_update"
   | "overlay:task_update"
   | "overlay:navigation_context"
   | "overlay:session_state"
@@ -226,6 +237,10 @@ export interface OverlayBridgeController {
     payload: BridgeMessagePayloadMap[TType],
     options?: SendBridgeMessageOptions,
   ) => BridgeMessage<TType>;
+  updateCustomization: (
+    customization: OverlayCustomization,
+    options?: SendBridgeMessageOptions,
+  ) => BridgeMessage<"overlay:customization_update">;
   receiveMessage: (input: unknown, context: IncomingBridgeMessageContext) => BridgeReceiveResult;
   beginHandshake: (
     helloMessage: Extract<AnyBridgeMessage, { type: "overlay:hello" }>,

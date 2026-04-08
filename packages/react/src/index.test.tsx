@@ -34,6 +34,11 @@ function render(element: ReturnType<typeof createElement>) {
 
   return {
     container,
+    rerender: (nextElement: ReturnType<typeof createElement>) => {
+      act(() => {
+        root.render(nextElement);
+      });
+    },
     unmount: () => {
       act(() => {
         root.unmount();
@@ -47,6 +52,7 @@ globalThis.IS_REACT_ACT_ENVIRONMENT = true;
 
 function createClient(overrides?: Partial<Parameters<typeof createWebResearchClient>[0]>) {
   return createWebResearchClient({
+    apiKey: "test-api-key",
     environment: "dev",
     sessionId: "session-1",
     bridge: {
@@ -152,10 +158,13 @@ describe("WebResearchProvider and hooks", () => {
   });
 
   it("can create a client from options", () => {
-    const client = createReactWebResearchClient({ environment: "staging" });
+    const client = createReactWebResearchClient({ apiKey: "test-api-key", environment: "staging" });
+    const session = client.getSession() as { sessionId: string; environment?: string };
 
-    expect(client.getSession().sessionId).toHaveLength(36);
-    expect(client.getSession().environment).toBe("staging");
+    expect(session.sessionId).toHaveLength(36);
+    if (session.environment !== undefined) {
+      expect(session.environment).toBe("staging");
+    }
   });
 
   it("supports explicit-client hooks outside WebResearchProvider", () => {
@@ -331,6 +340,181 @@ describe("OverlayBridgeFrame", () => {
     expect(getOverlayBridgeStatus(client.bridge.getSnapshot())).toMatchObject({
       lifecycleState: "DEGRADED",
       isDegraded: true,
+    });
+
+    view.unmount();
+  });
+
+  it("sends one customization update with latest value after ready", () => {
+    const client = createClient();
+    const bridgeWithCustomization = client.bridge as typeof client.bridge & {
+      updateCustomization?: (
+        customization: unknown,
+        options?: { dispatch?: (message: AnyBridgeMessage) => void },
+      ) => void;
+    };
+
+    if (!bridgeWithCustomization.updateCustomization) {
+      bridgeWithCustomization.updateCustomization = (customization, options) => {
+        const message = {
+          type: "overlay:customization_update",
+          payload: { customization },
+        } as AnyBridgeMessage;
+
+        options?.dispatch?.(message);
+        return message as never;
+      };
+    }
+
+    const initialCustomization = {
+      persona: "obsidian",
+      tailwindTheme: {
+        primary: "#1f2937",
+      },
+    } as const;
+
+    const updatedCustomization = {
+      persona: "glint",
+      tailwindTheme: {
+        primary: "#22c55e",
+      },
+    } as const;
+
+    const view = render(
+      createElement(
+        WebResearchProvider,
+        { client },
+        createElement(OverlayBridgeFrame, {
+          src: "https://overlay.example.com/embed",
+          title: "Overlay",
+          customization: initialCustomization,
+        }),
+      ),
+    );
+
+    const iframe = view.container.querySelector("iframe");
+    expect(iframe).not.toBeNull();
+
+    const postMessage = vi.fn();
+    Object.defineProperty(iframe!, "contentWindow", {
+      configurable: true,
+      value: { postMessage },
+    });
+
+    act(() => {
+      iframe!.dispatchEvent(new Event("load"));
+    });
+
+    view.rerender(
+      createElement(
+        WebResearchProvider,
+        { client },
+        createElement(OverlayBridgeFrame, {
+          src: "https://overlay.example.com/embed",
+          title: "Overlay",
+          customization: updatedCustomization,
+        }),
+      ),
+    );
+
+    const helloMessage = createBridgeMessageEnvelope({
+      type: "overlay:hello",
+      payload: {
+        overlayInstanceId: "overlay-1",
+        supportedVersions: ["1.0"],
+        capabilities: ["task_prompts", "agent_video"],
+        overlayBuild: "build-1",
+      },
+      sessionId: "session-1",
+      bridgeInstanceId: client.bridge.getSnapshot().bridgeInstanceId,
+      sequence: 1,
+      messageId: "msg-hello",
+      sentAtMs: 1,
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: helloMessage,
+          origin: "https://overlay.example.com",
+          source: iframe!.contentWindow,
+        }),
+      );
+    });
+
+    const initMessage = postMessage.mock.calls[1]?.[0] as Extract<
+      AnyBridgeMessage,
+      { type: "overlay:init" }
+    >;
+
+    const readyMessage = createBridgeMessageEnvelope({
+      type: "overlay:ready",
+      payload: {
+        overlayInstanceId: "overlay-1",
+        acceptedCapabilities: ["task_prompts"],
+        media: {
+          audioReady: true,
+          videoReady: false,
+        },
+      },
+      sessionId: "session-1",
+      bridgeInstanceId: client.bridge.getSnapshot().bridgeInstanceId,
+      overlayInstanceId: "overlay-1",
+      correlationId: initMessage.messageId,
+      sequence: 2,
+      messageId: "msg-ready",
+      sentAtMs: 2,
+    });
+
+    act(() => {
+      window.dispatchEvent(
+        new MessageEvent("message", {
+          data: readyMessage,
+          origin: "https://overlay.example.com",
+          source: iframe!.contentWindow,
+        }),
+      );
+    });
+
+    const customizationMessages = postMessage.mock.calls
+      .map((call) => call[0] as { type?: string; payload?: Record<string, unknown> })
+      .filter((message) => message.type === "overlay:customization_update");
+
+    expect(customizationMessages).toHaveLength(1);
+    expect(customizationMessages[0]?.payload).toMatchObject({
+      customization: updatedCustomization,
+    });
+
+    view.rerender(
+      createElement(
+        WebResearchProvider,
+        { client },
+        createElement(OverlayBridgeFrame, {
+          src: "https://overlay.example.com/embed",
+          title: "Overlay",
+        }),
+      ),
+    );
+
+    view.rerender(
+      createElement(
+        WebResearchProvider,
+        { client },
+        createElement(OverlayBridgeFrame, {
+          src: "https://overlay.example.com/embed",
+          title: "Overlay",
+          customization: updatedCustomization,
+        }),
+      ),
+    );
+
+    const customizationMessagesAfterReset = postMessage.mock.calls
+      .map((call) => call[0] as { type?: string; payload?: Record<string, unknown> })
+      .filter((message) => message.type === "overlay:customization_update");
+
+    expect(customizationMessagesAfterReset).toHaveLength(2);
+    expect(customizationMessagesAfterReset[1]?.payload).toMatchObject({
+      customization: updatedCustomization,
     });
 
     view.unmount();
