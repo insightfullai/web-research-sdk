@@ -8,6 +8,7 @@ import { afterEach, describe, expect, expectTypeOf, it, vi } from "vitest";
 
 import {
   createBridgeMessageEnvelope,
+  createPostMessageTransport,
   createWebResearchClient,
   OverlayBridgeRuntime,
   validateBridgeOrigin,
@@ -69,20 +70,41 @@ afterEach(() => {
 describe("createWebResearchClient", () => {
   it("creates a stable client facade", () => {
     const client = createWebResearchClient({
-      apiKey: "test-key",
+      environment: "dev",
       bridge: {
         iframeOrigin: "https://overlay.example.com",
       },
     });
 
     expect(client.getSession().sessionId).toHaveLength(36);
+    expect(client.getSession().environment).toBe("dev");
     expect(client.getLifecycleState()).toBe("UNMOUNTED");
     expect(typeof client.bridge.mount).toBe("function");
     expect(typeof client.destroy).toBe("function");
   });
 
-  it("requires an api key", () => {
-    expect(() => createWebResearchClient({ apiKey: "" })).toThrowError("apiKey is required");
+  it("requires a valid environment", () => {
+    expect(() =>
+      createWebResearchClient({
+        environment: "local" as "dev",
+      }),
+    ).toThrowError('environment must be one of "dev", "staging", or "prod"');
+    expect(() =>
+      createWebResearchClient({} as Parameters<typeof createWebResearchClient>[0]),
+    ).toThrowError('environment must be one of "dev", "staging", or "prod"');
+  });
+
+  it("rejects undefined or non-object options with a clear error", () => {
+    expect(() =>
+      createWebResearchClient(
+        undefined as unknown as Parameters<typeof createWebResearchClient>[0],
+      ),
+    ).toThrowError("createWebResearchClient options must be an object");
+    expect(() =>
+      createWebResearchClient(
+        "invalid" as unknown as Parameters<typeof createWebResearchClient>[0],
+      ),
+    ).toThrowError("createWebResearchClient options must be an object");
   });
 });
 
@@ -457,12 +479,57 @@ describe("OverlayBridgeRuntime", () => {
 
 describe("type compatibility", () => {
   it("preserves the intended public types", () => {
-    const client = createWebResearchClient({ apiKey: "test-key" });
+    const client = createWebResearchClient({ environment: "dev" });
 
     expectTypeOf<WebResearchClient>().toMatchTypeOf(client);
     expectTypeOf<OverlayBridgeController>().toMatchTypeOf(client.bridge);
     expectTypeOf(client.bridge.beginHandshake).returns.toEqualTypeOf<
       BridgeMessage<"overlay:init">
     >();
+  });
+});
+
+describe("transport helpers", () => {
+  it("includes session environment in postMessage batch and completion payloads", async () => {
+    const postMessage = vi.fn();
+    const transport = createPostMessageTransport({
+      targetWindow: { postMessage },
+      targetOrigin: "https://collector.example.com",
+    });
+
+    await transport.send({
+      session: {
+        sessionId: "session-1",
+        startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "staging",
+      },
+      events: [],
+      reason: "manual",
+    });
+    await transport.complete?.({
+      session: {
+        sessionId: "session-1",
+        startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "staging",
+      },
+      reason: "complete",
+      sentAt: "2026-04-01T00:00:01.000Z",
+    });
+
+    expect(postMessage).toHaveBeenCalledTimes(2);
+    expect(postMessage.mock.calls[0]?.[0]).toMatchObject({
+      batch: {
+        session: {
+          environment: "staging",
+        },
+      },
+    });
+    expect(postMessage.mock.calls[1]?.[0]).toMatchObject({
+      payload: {
+        session: {
+          environment: "staging",
+        },
+      },
+    });
   });
 });

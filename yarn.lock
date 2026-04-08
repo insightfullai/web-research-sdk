@@ -512,7 +512,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk-react@workspace:packages/react"
   dependencies:
-    "@insightfull/web-research-sdk": "npm:^0.1.0"
+    "@insightfull/web-research-sdk": "npm:^0.1.1"
     "@types/react": "npm:^19.2.2"
     "@types/react-dom": "npm:^19.2.2"
     jsdom: "npm:^26.1.0"
@@ -528,7 +528,21 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@insightfull/web-research-sdk@npm:^0.1.0, @insightfull/web-research-sdk@workspace:packages/core":
+"@insightfull/web-research-sdk-test-app-react@workspace:packages/test-app-react":
+  version: 0.0.0-use.local
+  resolution: "@insightfull/web-research-sdk-test-app-react@workspace:packages/test-app-react"
+  dependencies:
+    "@playwright/test": "npm:^1.54.2"
+    "@types/react": "npm:^19.2.2"
+    "@types/react-dom": "npm:^19.2.2"
+    react: "npm:^19.2.0"
+    react-dom: "npm:^19.2.0"
+    vite: "npm:^7.1.0"
+    vitest: "npm:@voidzero-dev/vite-plus-test@latest"
+  languageName: unknown
+  linkType: soft
+
+"@insightfull/web-research-sdk@npm:^0.1.1, @insightfull/web-research-sdk@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk@workspace:packages/core"
   languageName: unknown
@@ -944,6 +958,17 @@ __metadata:
   version: 1.57.0
   resolution: "@oxlint/binding-win32-x64-msvc@npm:1.57.0"
   conditions: os=win32 & cpu=x64
+  languageName: node
+  linkType: hard
+
+"@playwright/test@npm:^1.54.2":
+  version: 1.59.0
+  resolution: "@playwright/test@npm:1.59.0"
+  dependencies:
+    playwright: "npm:1.59.0"
+  bin:
+    playwright: cli.js
+  checksum: 10c0/161e8f4e61dc3679d055ca13ddb08211834bc1d54e08b2b269e94fb38408fb29a6fa36a67103bfbf6d9c02a3cf2c4073f0c1f0e6bfc3d3106e4d276d2dceb6b2
   languageName: node
   linkType: hard
 
@@ -1805,12 +1830,31 @@ __metadata:
   languageName: node
   linkType: hard
 
+"fsevents@npm:2.3.2":
+  version: 2.3.2
+  resolution: "fsevents@npm:2.3.2"
+  dependencies:
+    node-gyp: "npm:latest"
+  checksum: 10c0/be78a3efa3e181cda3cf7a4637cb527bcebb0bd0ea0440105a3bb45b86f9245b307dc10a2507e8f4498a7d4ec349d1910f4d73e4d4495b16103106e07eee735b
+  conditions: os=darwin
+  languageName: node
+  linkType: hard
+
 "fsevents@npm:~2.3.2, fsevents@npm:~2.3.3":
   version: 2.3.3
   resolution: "fsevents@npm:2.3.3"
   dependencies:
     node-gyp: "npm:latest"
   checksum: 10c0/a1f0c44595123ed717febbc478aa952e47adfc28e2092be66b8ab1635147254ca6cfe1df792a8997f22716d4cbafc73309899ff7bfac2ac3ad8cf2e4ecc3ec60
+  conditions: os=darwin
+  languageName: node
+  linkType: hard
+
+"fsevents@patch:fsevents@npm%3A2.3.2#optional!builtin<compat/fsevents>":
+  version: 2.3.2
+  resolution: "fsevents@patch:fsevents@npm%3A2.3.2#optional!builtin<compat/fsevents>::version=2.3.2&hash=df0bf1"
+  dependencies:
+    node-gyp: "npm:latest"
   conditions: os=darwin
   languageName: node
   linkType: hard
@@ -2738,6 +2782,30 @@ __metadata:
   languageName: node
   linkType: hard
 
+"playwright-core@npm:1.59.0":
+  version: 1.59.0
+  resolution: "playwright-core@npm:1.59.0"
+  bin:
+    playwright-core: cli.js
+  checksum: 10c0/73d93d78e8cd72b9440e41f29542189b4ce3b77f6ecc60ddb6edc5c65245fe5e235275dd62d62a9fd07d546710f0ee78827b9c98037f9dd8de2cd8e98cd33f31
+  languageName: node
+  linkType: hard
+
+"playwright@npm:1.59.0":
+  version: 1.59.0
+  resolution: "playwright@npm:1.59.0"
+  dependencies:
+    fsevents: "npm:2.3.2"
+    playwright-core: "npm:1.59.0"
+  dependenciesMeta:
+    fsevents:
+      optional: true
+  bin:
+    playwright: cli.js
+  checksum: 10c0/03b400ae1f822e8f943b5b44cd33c89f6e1afdf7467e89ed8bab945df8c23646b50361afedd2791774fa2d2bde33016b5a770c30856e0220edf4cf69537bdd28
+  languageName: node
+  linkType: hard
+
 "pngjs@npm:^7.0.0":
   version: 7.0.0
   resolution: "pngjs@npm:7.0.0"
@@ -3359,6 +3427,7 @@ __metadata:
   resolution: "web-research-sdk-workspace@workspace:."
   dependencies:
     "@changesets/cli": "npm:^2.29.6"
+    "@playwright/test": "npm:^1.54.2"
     "@types/node": "npm:^24.6.1"
     react: "npm:^19.2.0"
     react-dom: "npm:^19.2.0"

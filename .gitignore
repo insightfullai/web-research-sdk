@@ -5,3 +5,5 @@ node_modules/
 dist/
 coverage/
 .DS_Store
+.playwright-artifacts/
+packages/test-app-react/test-results/
