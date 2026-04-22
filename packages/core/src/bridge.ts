@@ -322,11 +322,7 @@ export class OverlayBridgeRuntime implements OverlayBridgeController {
     customization: OverlayCustomization,
     options?: SendBridgeMessageOptions,
   ): BridgeMessage<"overlay:customization_update"> {
-    return this.sendMessage(
-      "overlay:customization_update",
-      { customization },
-      options,
-    );
+    return this.sendMessage("overlay:customization_update", { customization }, options);
   }
 
   public receiveMessage(

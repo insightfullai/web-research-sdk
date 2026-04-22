@@ -289,7 +289,8 @@ function validateOverlayCustomization(
 
   let valid = true;
   if (payload.persona !== undefined) {
-    valid = validateEnum(payload.persona, OVERLAY_PERSONA_VARIANTS, `${path}.persona`, issues) && valid;
+    valid =
+      validateEnum(payload.persona, OVERLAY_PERSONA_VARIANTS, `${path}.persona`, issues) && valid;
   }
 
   if (payload.typography !== undefined) {
@@ -313,8 +314,11 @@ function validateOverlayCustomization(
       for (const key of OVERLAY_TAILWIND_THEME_KEYS) {
         if (payload.tailwindTheme[key] !== undefined) {
           valid =
-            validateStringOrNull(payload.tailwindTheme[key], `${path}.tailwindTheme.${key}`, issues) &&
-            valid;
+            validateStringOrNull(
+              payload.tailwindTheme[key],
+              `${path}.tailwindTheme.${key}`,
+              issues,
+            ) && valid;
         }
       }
     }

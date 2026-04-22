@@ -528,7 +528,7 @@ describe("type compatibility", () => {
 });
 
 describe("transport helpers", () => {
-  it("includes session environment in postMessage batch and completion payloads", async () => {
+  it("includes version and session metadata in postMessage batch and completion payloads", async () => {
     const postMessage = vi.fn();
     const transport = createPostMessageTransport({
       targetWindow: { postMessage },
@@ -556,17 +556,17 @@ describe("transport helpers", () => {
 
     expect(postMessage).toHaveBeenCalledTimes(2);
     expect(postMessage.mock.calls[0]?.[0]).toMatchObject({
-      batch: {
-        session: {
-          environment: "staging",
-        },
+      type: "insightfull:web-research-batch",
+      version: "1.0",
+      session: {
+        environment: "staging",
       },
     });
     expect(postMessage.mock.calls[1]?.[0]).toMatchObject({
-      payload: {
-        session: {
-          environment: "staging",
-        },
+      type: "insightfull:web-research-batch:complete",
+      version: "1.0",
+      session: {
+        environment: "staging",
       },
     });
   });

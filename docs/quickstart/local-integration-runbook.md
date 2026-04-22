@@ -76,3 +76,61 @@ corepack yarn pack:dry-run
 ## OSS/private boundary reminder
 
 This repo owns host runtime behavior only. Proprietary overlay logic, interview orchestration, and private backend token issuance stay outside this repository.
+
+## Embedded partner-host + Insightfull runtime matrix (Wave 3 C3)
+
+Use this flow when validating the integrated topology (`partner host page` -> `embedded Insightfull iframe`).
+
+### Local prerequisites
+
+1. Start Insightfull app + API from `insightfull` so `/embedded/live-study` and tRPC routes are reachable.
+2. Start SDK test harness from `web-research-sdk/packages/test-app-react` via Playwright web server.
+3. Use separate browser contexts for partner host and embedded iframe debugging when investigating origin/session failures.
+
+### Contracts sync prerequisite (cross-repo)
+
+`insightfull` currently consumes `@insightfull/web-research-sdk-contracts` via a local file dependency. Refresh it before running the Wave 3 matrix so contract edits in this repo are visible there.
+
+From `web-research-sdk`:
+
+```bash
+yarn workspace @insightfull/web-research-sdk-contracts build
+```
+
+From `insightfull`:
+
+```bash
+yarn install
+```
+
+### Required verification commands
+
+Run from `web-research-sdk`:
+
+```bash
+yarn test:e2e
+```
+
+Run from `insightfull`:
+
+```bash
+yarn test:e2e -- --grep "embedded web study"
+```
+
+### Targeted A/B hardening suites to run alongside C3
+
+Run from `insightfull`:
+
+```bash
+yarn nx run multi-section-flow:test --runInBand --testFile=libs/multi-section-flow/src/lib/components/sections/__tests__/PrototypeTestSection.test.tsx
+yarn nx run prototype-testing:test --runInBand --testFile=libs/prototype-testing/src/lib/routers/embedded-security-regression.test.ts
+yarn nx run prototype-testing-react:test --runInBand --testFile=libs/prototype-testing-react/src/lib/components/__tests__/ReplayTimeline.test.tsx
+```
+
+### Matrix checklist
+
+- happy path: trigger -> overlay visible -> embedded runtime active -> host events persisted -> completion observed
+- invalid origin: embedded boundary rejects writes and runtime remains safe
+- invalid/missing environment: launch or batch is rejected fail-closed
+- stale or ended session: follow-on batches are rejected
+- reconnect: temporary failure/offline window followed by resumed event ingestion

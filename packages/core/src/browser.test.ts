@@ -444,6 +444,182 @@ describe("WebResearchEventQueue", () => {
     expect(completionAttempts[1]).toMatchObject({ reason: "complete_twice" });
     expect(queue.getSnapshot()).toMatchObject({ bufferedEvents: 0 });
   });
+
+  it("complete throws after max flush retries when transport is dead", async () => {
+    const queue = new WebResearchEventQueue({
+      session: {
+        sessionId: "session-1",
+        startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "dev",
+      },
+      transport: {
+        send: async () => {
+          throw new Error("transport dead");
+        },
+      },
+      batching: {
+        batchSize: 10,
+        flushIntervalMs: 0,
+      },
+    });
+
+    queue.enqueue({ name: "event.one", payload: {} }, "manual");
+    await expect(queue.complete("dead")).rejects.toThrow(
+      "Failed to flush 1 events after 5 attempts. Transport may be dead.",
+    );
+  });
+
+  it("complete succeeds when flush recovers on a later retry", async () => {
+    let failCount = 0;
+    const queue = new WebResearchEventQueue({
+      session: {
+        sessionId: "session-1",
+        startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "dev",
+      },
+      transport: {
+        send: async () => {
+          failCount++;
+          if (failCount <= 2) {
+            throw new Error("transient failure");
+          }
+        },
+      },
+      batching: {
+        batchSize: 10,
+        flushIntervalMs: 0,
+      },
+    });
+
+    queue.enqueue({ name: "event.one", payload: {} }, "manual");
+    await queue.complete("recover");
+
+    expect(failCount).toBe(3);
+    expect(queue.getSnapshot()).toMatchObject({ bufferedEvents: 0 });
+  });
+
+  it("clamps batchSize above 200 to 200", async () => {
+    const batches: WebResearchEventBatch[] = [];
+    const queue = new WebResearchEventQueue({
+      session: {
+        sessionId: "session-1",
+        startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "dev",
+      },
+      transport: {
+        send: (batch) => {
+          batches.push(batch);
+        },
+      },
+      batching: {
+        batchSize: 500,
+        flushIntervalMs: 0,
+      },
+    });
+
+    for (let i = 0; i < 200; i++) {
+      queue.enqueue({ name: "navigation", payload: {} }, "manual");
+    }
+
+    await queue.flush();
+
+    expect(batches).toHaveLength(1);
+    expect(batches[0]?.events).toHaveLength(200);
+
+    queue.enqueue({ name: "navigation", payload: {} }, "manual");
+    expect(queue.getSnapshot()).toMatchObject({ bufferedEvents: 1 });
+  });
+
+  it("clamps batchSize of 0 or negative to 1", async () => {
+    const batches: WebResearchEventBatch[] = [];
+
+    const queueZero = new WebResearchEventQueue({
+      session: {
+        sessionId: "session-1",
+        startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "dev",
+      },
+      transport: {
+        send: (batch) => {
+          batches.push(batch);
+        },
+      },
+      batching: {
+        batchSize: 0,
+        flushIntervalMs: 0,
+      },
+    });
+
+    queueZero.enqueue({ name: "navigation", payload: {} }, "manual");
+    await queueZero.flush("zero_flush");
+    expect(batches).toHaveLength(1);
+    expect(batches[0]?.events).toHaveLength(1);
+
+    batches.length = 0;
+
+    const queueNegative = new WebResearchEventQueue({
+      session: {
+        sessionId: "session-2",
+        startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "dev",
+      },
+      transport: {
+        send: (batch) => {
+          batches.push(batch);
+        },
+      },
+      batching: {
+        batchSize: -10,
+        flushIntervalMs: 0,
+      },
+    });
+
+    queueNegative.enqueue({ name: "navigation", payload: {} }, "manual");
+    await queueNegative.flush("negative_flush");
+    expect(batches).toHaveLength(1);
+    expect(batches[0]?.events).toHaveLength(1);
+  });
+
+  it("preserves batchSize within valid range", async () => {
+    const batches: WebResearchEventBatch[] = [];
+    const queue = new WebResearchEventQueue({
+      session: {
+        sessionId: "session-1",
+        startedAt: "2026-04-01T00:00:00.000Z",
+        environment: "dev",
+      },
+      transport: {
+        send: (batch) => {
+          batches.push(batch);
+        },
+      },
+      batching: {
+        batchSize: 3,
+        flushIntervalMs: 0,
+      },
+    });
+
+    for (let i = 0; i < 3; i++) {
+      queue.enqueue({ name: "navigation", payload: {} }, "manual");
+    }
+
+    await queue.flush();
+
+    expect(batches).toHaveLength(1);
+    expect(batches[0]?.events).toHaveLength(3);
+
+    for (let i = 0; i < 3; i++) {
+      queue.enqueue({ name: "navigation", payload: {} }, "manual");
+    }
+
+    await queue.flush();
+
+    expect(batches).toHaveLength(2);
+    expect(batches[1]?.events).toHaveLength(3);
+
+    queue.enqueue({ name: "navigation", payload: {} }, "manual");
+    expect(queue.getSnapshot()).toMatchObject({ bufferedEvents: 1 });
+  });
 });
 
 describe("DefaultWebResearchClient", () => {

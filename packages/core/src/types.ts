@@ -1,3 +1,5 @@
+import type { WebResearchBatchMessage } from "@insightfull/web-research-sdk-contracts";
+
 import type {
   AnyBridgeMessage,
   BridgeCapability,
@@ -152,6 +154,27 @@ export interface WebResearchTransportCompletePayload {
   sentAt: string;
 }
 
+export interface TaskSignalEvidence {
+  note?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SignalTaskCompleteOptions {
+  taskId: string;
+  evidence?: TaskSignalEvidence;
+}
+
+export interface SignalTaskAbandonOptions {
+  taskId: string;
+  reason: string;
+  evidence?: TaskSignalEvidence;
+}
+
+export interface TrackCustomEventOptions {
+  name: string;
+  payload?: Record<string, unknown>;
+}
+
 export interface WebResearchTransport {
   send: (batch: WebResearchEventBatch) => Promise<void> | void;
   complete?: (payload: WebResearchTransportCompletePayload) => Promise<void> | void;
@@ -168,6 +191,19 @@ export interface StartBrowserSessionOptions {
   window?: Window;
   document?: Document;
   captureInitialNavigation?: boolean;
+}
+
+export interface SdkStateChangeContext {
+  reason?: string;
+  diagnostic?: string;
+}
+
+export interface EmbeddedOverlayOptions {
+  width?: string;
+  height?: string;
+  position?: "bottom-right" | "bottom-left" | "top-right" | "top-left" | "center";
+  zIndex?: string;
+  offset?: string;
 }
 
 export interface BrowserSessionSnapshot {
@@ -268,5 +304,5 @@ export interface CallbackTransportOptions {
 export interface PostMessageTransportOptions {
   targetWindow: Pick<Window, "postMessage">;
   targetOrigin: string;
-  messageType?: string;
+  messageType?: WebResearchBatchMessage["type"];
 }

@@ -4,7 +4,7 @@ import { fileURLToPath } from "node:url";
 
 const rootDir = path.dirname(fileURLToPath(new URL("../package.json", import.meta.url)));
 
-const packages = ["packages/core", "packages/react"];
+const packages = ["packages/core", "packages/react", "packages/contracts"];
 
 async function assertExists(filePath) {
   try {
@@ -35,4 +35,4 @@ for (const packageDir of packages) {
   }
 }
 
-console.log("Verified package export targets for core and react.");
+console.log("Verified package export targets for core, react, and contracts.");

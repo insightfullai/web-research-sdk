@@ -122,13 +122,7 @@ export type OverlayShutdownReason =
   | "fatal_error";
 export type OverlayUiPosition = "bottom-right" | "bottom-left";
 export type OverlayTheme = "light" | "dark" | "system";
-export type OverlayPersonaVariant =
-  | "obsidian"
-  | "mana"
-  | "opal"
-  | "halo"
-  | "glint"
-  | "command";
+export type OverlayPersonaVariant = "obsidian" | "mana" | "opal" | "halo" | "glint" | "command";
 export type OverlayConsentMode = "required" | "best_effort" | "off";
 export type OverlayUiCommand =
   | "request_minimize"
