@@ -45,6 +45,7 @@ export const BRIDGE_ERROR_CODES = [
 
 export const BRIDGE_MESSAGE_TYPES = [
   "overlay:init",
+  "overlay:customization_update",
   "overlay:task_update",
   "overlay:navigation_context",
   "overlay:session_state",
@@ -65,6 +66,10 @@ export const BRIDGE_MESSAGE_TYPES = [
 
 export const BRIDGE_MESSAGE_SPECS = {
   "overlay:init": { direction: "sdk-to-overlay", requiresAck: true },
+  "overlay:customization_update": {
+    direction: "sdk-to-overlay",
+    requiresAck: true,
+  },
   "overlay:task_update": { direction: "sdk-to-overlay", requiresAck: true },
   "overlay:navigation_context": {
     direction: "sdk-to-overlay",
@@ -117,6 +122,7 @@ export type OverlayShutdownReason =
   | "fatal_error";
 export type OverlayUiPosition = "bottom-right" | "bottom-left";
 export type OverlayTheme = "light" | "dark" | "system";
+export type OverlayPersonaVariant = "obsidian" | "mana" | "opal" | "halo" | "glint" | "command";
 export type OverlayConsentMode = "required" | "best_effort" | "off";
 export type OverlayUiCommand =
   | "request_minimize"
@@ -172,6 +178,36 @@ export interface OverlayInitUiConfig {
   defaultPosition: OverlayUiPosition;
   showAiPersona: boolean;
   theme?: OverlayTheme;
+  customization?: OverlayCustomization;
+}
+
+export interface OverlayTypographyConfig {
+  fontFamily?: string | null;
+  headingFontFamily?: string | null;
+}
+
+export interface OverlayTailwindThemeOverrides {
+  primary?: string | null;
+  primaryForeground?: string | null;
+  secondary?: string | null;
+  secondaryForeground?: string | null;
+  accent?: string | null;
+  accentForeground?: string | null;
+  background?: string | null;
+  foreground?: string | null;
+  muted?: string | null;
+  mutedForeground?: string | null;
+  border?: string | null;
+  ring?: string | null;
+  radius?: string | null;
+  fontFamily?: string | null;
+  headingFontFamily?: string | null;
+}
+
+export interface OverlayCustomization {
+  persona?: OverlayPersonaVariant;
+  typography?: OverlayTypographyConfig;
+  tailwindTheme?: OverlayTailwindThemeOverrides;
 }
 
 export interface OverlayInitConsent {
@@ -200,6 +236,10 @@ export interface OverlayTask {
 export interface OverlayTaskUpdatePayload {
   activeTaskId: string | null;
   tasks: OverlayTask[];
+}
+
+export interface OverlayCustomizationUpdatePayload {
+  customization: OverlayCustomization;
 }
 
 export interface OverlayNavigationContextPayload {
@@ -287,6 +327,7 @@ export type BridgePongPayload = Record<string, never>;
 
 export interface BridgeMessagePayloadMap {
   "overlay:init": OverlayInitPayload;
+  "overlay:customization_update": OverlayCustomizationUpdatePayload;
   "overlay:task_update": OverlayTaskUpdatePayload;
   "overlay:navigation_context": OverlayNavigationContextPayload;
   "overlay:session_state": OverlaySessionStatePayload;

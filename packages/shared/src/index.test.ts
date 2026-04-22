@@ -60,6 +60,7 @@ describe("protocol constants", () => {
   it("matches the protocol message catalog and retry policy", () => {
     expect(BRIDGE_MESSAGE_TYPES).toEqual([
       "overlay:init",
+      "overlay:customization_update",
       "overlay:task_update",
       "overlay:navigation_context",
       "overlay:session_state",
@@ -84,6 +85,10 @@ describe("protocol constants", () => {
     expect(BRIDGE_MESSAGE_SPECS["overlay:navigation_context"]).toEqual({
       direction: "sdk-to-overlay",
       requiresAck: false,
+    });
+    expect(BRIDGE_MESSAGE_SPECS["overlay:customization_update"]).toEqual({
+      direction: "sdk-to-overlay",
+      requiresAck: true,
     });
     expect(BRIDGE_MESSAGE_SPECS["overlay:diagnostic"]).toEqual({
       direction: "overlay-to-sdk",
@@ -149,6 +154,18 @@ describe("bridge validation", () => {
             defaultPosition: "bottom-right",
             showAiPersona: true,
             theme: "system",
+            customization: {
+              persona: "opal",
+              typography: {
+                fontFamily: "Lexend",
+                headingFontFamily: "Fraunces",
+              },
+              tailwindTheme: {
+                primary: "oklch(0.56 0.2 264)",
+                background: null,
+                radius: "0.75rem",
+              },
+            },
           },
           consent: {
             mode: "required",
@@ -209,10 +226,31 @@ describe("bridge validation", () => {
       {
         namespace: BRIDGE_NAMESPACE,
         version: BRIDGE_VERSION,
-        type: "overlay:task_update",
-        messageId: "msg-task",
+        type: "overlay:customization_update",
+        messageId: "msg-customization",
         sequence: 4,
         sentAtMs: 3,
+        sessionId: "session-1",
+        bridgeInstanceId: "bridge-1",
+        overlayInstanceId: "overlay-1",
+        requiresAck: true,
+        payload: {
+          customization: {
+            persona: "halo",
+            tailwindTheme: {
+              primary: "#0f172a",
+              mutedForeground: null,
+            },
+          },
+        },
+      },
+      {
+        namespace: BRIDGE_NAMESPACE,
+        version: BRIDGE_VERSION,
+        type: "overlay:task_update",
+        messageId: "msg-task",
+        sequence: 5,
+        sentAtMs: 4,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         requiresAck: true,
@@ -233,8 +271,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "overlay:navigation_context",
         messageId: "msg-nav",
-        sequence: 5,
-        sentAtMs: 4,
+        sequence: 6,
+        sentAtMs: 5,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         requiresAck: false,
@@ -250,8 +288,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "overlay:session_state",
         messageId: "msg-session",
-        sequence: 6,
-        sentAtMs: 5,
+        sequence: 7,
+        sentAtMs: 6,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         requiresAck: true,
@@ -265,8 +303,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "overlay:token_refresh",
         messageId: "msg-refresh",
-        sequence: 7,
-        sentAtMs: 6,
+        sequence: 8,
+        sentAtMs: 7,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         requiresAck: true,
@@ -280,8 +318,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "overlay:shutdown",
         messageId: "msg-shutdown",
-        sequence: 8,
-        sentAtMs: 7,
+        sequence: 9,
+        sentAtMs: 8,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         requiresAck: true,
@@ -294,8 +332,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "overlay:ui_command",
         messageId: "msg-ui",
-        sequence: 9,
-        sentAtMs: 8,
+        sequence: 10,
+        sentAtMs: 9,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         overlayInstanceId: "overlay-1",
@@ -310,8 +348,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "overlay:session_action",
         messageId: "msg-action",
-        sequence: 10,
-        sentAtMs: 9,
+        sequence: 11,
+        sentAtMs: 10,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         overlayInstanceId: "overlay-1",
@@ -326,8 +364,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "overlay:token_refresh_request",
         messageId: "msg-refresh-request",
-        sequence: 11,
-        sentAtMs: 10,
+        sequence: 12,
+        sentAtMs: 11,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         overlayInstanceId: "overlay-1",
@@ -342,8 +380,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "overlay:diagnostic",
         messageId: "msg-diagnostic",
-        sequence: 12,
-        sentAtMs: 11,
+        sequence: 13,
+        sentAtMs: 12,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         overlayInstanceId: "overlay-1",
@@ -360,8 +398,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "overlay:error",
         messageId: "msg-error",
-        sequence: 13,
-        sentAtMs: 12,
+        sequence: 14,
+        sentAtMs: 13,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         overlayInstanceId: "overlay-1",
@@ -378,8 +416,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "bridge:ack",
         messageId: "msg-ack",
-        sequence: 14,
-        sentAtMs: 13,
+        sequence: 15,
+        sentAtMs: 14,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         correlationId: "msg-ready",
@@ -394,8 +432,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "bridge:nack",
         messageId: "msg-nack",
-        sequence: 15,
-        sentAtMs: 14,
+        sequence: 16,
+        sentAtMs: 15,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         correlationId: "msg-command",
@@ -413,8 +451,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "bridge:ping",
         messageId: "msg-ping",
-        sequence: 16,
-        sentAtMs: 15,
+        sequence: 17,
+        sentAtMs: 16,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         requiresAck: false,
@@ -425,8 +463,8 @@ describe("bridge validation", () => {
         version: BRIDGE_VERSION,
         type: "bridge:pong",
         messageId: "msg-pong",
-        sequence: 17,
-        sentAtMs: 16,
+        sequence: 18,
+        sentAtMs: 17,
         sessionId: "session-1",
         bridgeInstanceId: "bridge-1",
         correlationId: "msg-ping",
@@ -542,6 +580,71 @@ describe("bridge validation", () => {
     expect(result.success).toBe(true);
     if (result.success) {
       expect(result.value.payload.level).toBe("info");
+    }
+  });
+
+  it("validates overlay:customization_update payloads", () => {
+    const validResult = validateBridgeMessageType(
+      {
+        namespace: BRIDGE_NAMESPACE,
+        version: BRIDGE_VERSION,
+        type: "overlay:customization_update",
+        messageId: "msg-customization",
+        sequence: 1,
+        sentAtMs: 1,
+        sessionId: "session-1",
+        bridgeInstanceId: "bridge-1",
+        requiresAck: true,
+        payload: {
+          customization: {
+            persona: "glint",
+            typography: {
+              fontFamily: "IBM Plex Sans",
+              headingFontFamily: null,
+            },
+            tailwindTheme: {
+              primary: "#0ea5e9",
+              primaryForeground: "#f8fafc",
+              border: null,
+            },
+          },
+        },
+      },
+      "overlay:customization_update",
+    );
+    expect(validResult.success).toBe(true);
+
+    const invalidResult = validateBridgeMessageType(
+      {
+        namespace: BRIDGE_NAMESPACE,
+        version: BRIDGE_VERSION,
+        type: "overlay:customization_update",
+        messageId: "msg-customization-invalid",
+        sequence: 2,
+        sentAtMs: 2,
+        sessionId: "session-1",
+        bridgeInstanceId: "bridge-1",
+        requiresAck: true,
+        payload: {
+          customization: {
+            persona: "invalid",
+            tailwindTheme: {
+              primary: 123,
+            },
+          },
+        },
+      },
+      "overlay:customization_update",
+    );
+
+    expect(invalidResult.success).toBe(false);
+    if (!invalidResult.success) {
+      expect(invalidResult.error.issues.map((issue) => issue.path)).toEqual(
+        expect.arrayContaining([
+          "payload.customization.persona",
+          "payload.customization.tailwindTheme.primary",
+        ]),
+      );
     }
   });
 

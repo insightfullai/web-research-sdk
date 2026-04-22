@@ -475,6 +475,44 @@ describe("OverlayBridgeRuntime", () => {
     expect(runtime.getSnapshot().pendingAckMessageIds).toHaveLength(0);
     expect(runtime.getSnapshot().diagnostics.at(-1)).toMatchObject({ code: "BRG_ACK_TIMEOUT" });
   });
+
+  it("sends overlay:customization_update through updateCustomization helper", () => {
+    const runtime = createTestRuntime();
+    const dispatched: AnyBridgeMessage[] = [];
+
+    const message = runtime.updateCustomization(
+      {
+        persona: "command",
+        tailwindTheme: {
+          primary: "#111827",
+          primaryForeground: null,
+        },
+      },
+      {
+        dispatch: (outgoing) => dispatched.push(outgoing),
+      },
+    );
+
+    expect(message.type).toBe("overlay:customization_update");
+    expect(message.requiresAck).toBe(true);
+    expect(message.payload.customization).toEqual({
+      persona: "command",
+      tailwindTheme: {
+        primary: "#111827",
+        primaryForeground: null,
+      },
+    });
+    expect(dispatched).toHaveLength(1);
+    expect(dispatched[0]).toMatchObject({
+      type: "overlay:customization_update",
+      payload: {
+        customization: {
+          persona: "command",
+        },
+      },
+    });
+    expect(runtime.getSnapshot().pendingAckMessageIds).toContain(message.messageId);
+  });
 });
 
 describe("type compatibility", () => {
@@ -490,7 +528,7 @@ describe("type compatibility", () => {
 });
 
 describe("transport helpers", () => {
-  it("includes session environment in postMessage batch and completion payloads", async () => {
+  it("includes version and session metadata in postMessage batch and completion payloads", async () => {
     const postMessage = vi.fn();
     const transport = createPostMessageTransport({
       targetWindow: { postMessage },
@@ -518,17 +556,17 @@ describe("transport helpers", () => {
 
     expect(postMessage).toHaveBeenCalledTimes(2);
     expect(postMessage.mock.calls[0]?.[0]).toMatchObject({
-      batch: {
-        session: {
-          environment: "staging",
-        },
+      type: "insightfull:web-research-batch",
+      version: "1.0",
+      session: {
+        environment: "staging",
       },
     });
     expect(postMessage.mock.calls[1]?.[0]).toMatchObject({
-      payload: {
-        session: {
-          environment: "staging",
-        },
+      type: "insightfull:web-research-batch:complete",
+      version: "1.0",
+      session: {
+        environment: "staging",
       },
     });
   });

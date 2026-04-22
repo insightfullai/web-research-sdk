@@ -508,6 +508,12 @@ __metadata:
   languageName: node
   linkType: hard
 
+"@insightfull/web-research-sdk-contracts@workspace:*, @insightfull/web-research-sdk-contracts@workspace:packages/contracts":
+  version: 0.0.0-use.local
+  resolution: "@insightfull/web-research-sdk-contracts@workspace:packages/contracts"
+  languageName: unknown
+  linkType: soft
+
 "@insightfull/web-research-sdk-react@workspace:packages/react":
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk-react@workspace:packages/react"
@@ -545,6 +551,8 @@ __metadata:
 "@insightfull/web-research-sdk@npm:^0.1.1, @insightfull/web-research-sdk@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk@workspace:packages/core"
+  dependencies:
+    "@insightfull/web-research-sdk-contracts": "workspace:*"
   languageName: unknown
   linkType: soft
 

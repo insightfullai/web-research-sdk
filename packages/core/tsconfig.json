@@ -2,6 +2,7 @@
   "extends": "../../tsconfig.base.json",
   "compilerOptions": {
     "paths": {
+      "@insightfull/web-research-sdk-contracts": ["../contracts/src/index.ts"],
       "@insightfull/web-research-sdk-shared": ["../shared/src/index.ts"]
     }
   },

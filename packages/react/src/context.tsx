@@ -11,12 +11,22 @@ import {
 
 import {
   createWebResearchClient,
+  type OverlayCustomization,
+  type OverlayPersonaVariant,
   type OverlayBridgeSnapshot,
+  type OverlayTailwindThemeOverrides,
+  type OverlayTypographyConfig,
   type WebResearchClient,
   type WebResearchClientOptions,
 } from "@insightfull/web-research-sdk";
 
 export type { OverlayBridgeSnapshot, WebResearchClient, WebResearchClientOptions };
+export type {
+  OverlayCustomization,
+  OverlayPersonaVariant,
+  OverlayTailwindThemeOverrides,
+  OverlayTypographyConfig,
+};
 
 const WebResearchClientContext = createContext<WebResearchClient | null>(null);
 

@@ -1,7 +1,7 @@
 {
-  "name": "@insightfull/web-research-sdk",
-  "version": "0.1.1",
-  "description": "Core Insightfull Web Research SDK bridge and client runtime.",
+  "name": "@insightfull/web-research-sdk-contracts",
+  "version": "0.1.0",
+  "description": "Shared postMessage contract definitions for SDK and embedded Insightfull runtime.",
   "homepage": "https://github.com/insightfullai/web-research-sdk#readme",
   "bugs": {
     "url": "https://github.com/insightfullai/web-research-sdk/issues"
@@ -10,7 +10,7 @@
   "repository": {
     "type": "git",
     "url": "git+https://github.com/insightfullai/web-research-sdk.git",
-    "directory": "packages/core"
+    "directory": "packages/contracts"
   },
   "files": [
     "dist"
@@ -36,8 +36,5 @@
     "pack": "vp pack",
     "test": "vp test run",
     "clean": "rm -rf dist"
-  },
-  "dependencies": {
-    "@insightfull/web-research-sdk-contracts": "workspace:*"
   }
 }

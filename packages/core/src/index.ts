@@ -12,4 +12,9 @@ export {
   createPostMessageTransport,
   WebResearchEventQueue,
 } from "./transport";
+export {
+  createEmbeddedHostRuntime,
+  type EmbeddedHostRuntimeController,
+  type EmbeddedHostRuntimeOptions,
+} from "./embedded-host-runtime";
 export type * from "./types";

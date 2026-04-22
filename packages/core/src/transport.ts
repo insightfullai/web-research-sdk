@@ -1,3 +1,11 @@
+import {
+  WEB_RESEARCH_BATCH_MESSAGE_TYPE,
+  WEB_RESEARCH_COMPLETE_MESSAGE_TYPE,
+  WEB_RESEARCH_PROTOCOL_VERSION,
+  type WebResearchBatchMessage,
+  type WebResearchCompleteMessage,
+} from "@insightfull/web-research-sdk-contracts";
+
 import type {
   CallbackTransportOptions,
   PostMessageTransportOptions,
@@ -11,6 +19,7 @@ import type {
 
 const DEFAULT_BATCH_SIZE = 10;
 const DEFAULT_FLUSH_INTERVAL_MS = 1_000;
+const MAX_BATCH_SIZE = 200;
 
 interface QueueDependencies {
   now: () => number;
@@ -33,12 +42,14 @@ function sanitizeBatchingOptions(options?: WebResearchBatchingOptions) {
       : DEFAULT_FLUSH_INTERVAL_MS;
 
   return {
-    batchSize: Math.max(1, Math.floor(batchSize)),
+    batchSize: Math.max(1, Math.min(MAX_BATCH_SIZE, Math.floor(batchSize))),
     flushIntervalMs: Math.max(0, Math.floor(flushIntervalMs)),
   };
 }
 
 export class WebResearchEventQueue {
+  private static readonly MAX_COMPLETE_FLUSH_RETRIES = 5;
+
   private readonly session: SessionMetadata;
   private readonly transport: WebResearchTransport;
   private readonly batchSize: number;
@@ -132,12 +143,20 @@ export class WebResearchEventQueue {
     if (!this.completingPromise) {
       this.completingPromise = (async () => {
         this.clearFlushTimer();
+        let consecutiveFailures = 0;
 
-        while (true) {
-          await this.flush(reason);
-
-          if (this.events.length === 0) {
-            break;
+        while (this.events.length > 0) {
+          try {
+            await this.flush(reason);
+            consecutiveFailures = 0;
+          } catch {
+            consecutiveFailures++;
+            if (consecutiveFailures >= WebResearchEventQueue.MAX_COMPLETE_FLUSH_RETRIES) {
+              throw new Error(
+                `Failed to flush ${this.events.length} events after ` +
+                  `${consecutiveFailures} attempts. Transport may be dead.`,
+              );
+            }
           }
         }
 
@@ -212,26 +231,31 @@ export function createCallbackTransport(options: CallbackTransportOptions): WebR
 export function createPostMessageTransport(
   options: PostMessageTransportOptions,
 ): WebResearchTransport {
-  const messageType = options.messageType ?? "insightfull:web-research-batch";
+  const batchMessageType = options.messageType ?? WEB_RESEARCH_BATCH_MESSAGE_TYPE;
 
   return {
     send(batch) {
-      options.targetWindow.postMessage(
-        {
-          type: messageType,
-          batch,
-        },
-        options.targetOrigin,
-      );
+      const payload: WebResearchBatchMessage = {
+        type: batchMessageType,
+        version: WEB_RESEARCH_PROTOCOL_VERSION,
+        session: batch.session,
+        sentAt: new Date().toISOString(),
+        reason: batch.reason,
+        events: batch.events as WebResearchBatchMessage["events"],
+      };
+
+      options.targetWindow.postMessage(payload, options.targetOrigin);
     },
     complete(payload) {
-      options.targetWindow.postMessage(
-        {
-          type: `${messageType}:complete`,
-          payload,
-        },
-        options.targetOrigin,
-      );
+      const completeMessage: WebResearchCompleteMessage = {
+        type: WEB_RESEARCH_COMPLETE_MESSAGE_TYPE,
+        version: WEB_RESEARCH_PROTOCOL_VERSION,
+        session: payload.session,
+        sentAt: payload.sentAt,
+        reason: payload.reason,
+      };
+
+      options.targetWindow.postMessage(completeMessage, options.targetOrigin);
     },
   };
 }

@@ -1,3 +1,5 @@
+import type { WebResearchBatchMessage } from "@insightfull/web-research-sdk-contracts";
+
 import type {
   AnyBridgeMessage,
   BridgeCapability,
@@ -9,6 +11,11 @@ import type {
   OverlayInitConsent,
   OverlayInitContext,
   OverlayInitUiConfig,
+  OverlayCustomization,
+  OverlayCustomizationUpdatePayload,
+  OverlayPersonaVariant,
+  OverlayTailwindThemeOverrides,
+  OverlayTypographyConfig,
   RuntimeEnvironment,
   SessionMetadata,
   SdkEvent,
@@ -26,6 +33,11 @@ export type {
   OverlayInitConsent,
   OverlayInitContext,
   OverlayInitUiConfig,
+  OverlayCustomization,
+  OverlayCustomizationUpdatePayload,
+  OverlayPersonaVariant,
+  OverlayTailwindThemeOverrides,
+  OverlayTypographyConfig,
   RuntimeEnvironment,
   SessionMetadata,
   SdkEvent,
@@ -69,6 +81,7 @@ export interface CreateBridgeMessageEnvelopeOptions<TType extends BridgeMessageT
 export type SdkToOverlayMessageType = Extract<
   BridgeMessageType,
   | "overlay:init"
+  | "overlay:customization_update"
   | "overlay:task_update"
   | "overlay:navigation_context"
   | "overlay:session_state"
@@ -141,6 +154,27 @@ export interface WebResearchTransportCompletePayload {
   sentAt: string;
 }
 
+export interface TaskSignalEvidence {
+  note?: string;
+  metadata?: Record<string, unknown>;
+}
+
+export interface SignalTaskCompleteOptions {
+  taskId: string;
+  evidence?: TaskSignalEvidence;
+}
+
+export interface SignalTaskAbandonOptions {
+  taskId: string;
+  reason: string;
+  evidence?: TaskSignalEvidence;
+}
+
+export interface TrackCustomEventOptions {
+  name: string;
+  payload?: Record<string, unknown>;
+}
+
 export interface WebResearchTransport {
   send: (batch: WebResearchEventBatch) => Promise<void> | void;
   complete?: (payload: WebResearchTransportCompletePayload) => Promise<void> | void;
@@ -157,6 +191,19 @@ export interface StartBrowserSessionOptions {
   window?: Window;
   document?: Document;
   captureInitialNavigation?: boolean;
+}
+
+export interface SdkStateChangeContext {
+  reason?: string;
+  diagnostic?: string;
+}
+
+export interface EmbeddedOverlayOptions {
+  width?: string;
+  height?: string;
+  position?: "bottom-right" | "bottom-left" | "top-right" | "top-left" | "center";
+  zIndex?: string;
+  offset?: string;
 }
 
 export interface BrowserSessionSnapshot {
@@ -226,6 +273,10 @@ export interface OverlayBridgeController {
     payload: BridgeMessagePayloadMap[TType],
     options?: SendBridgeMessageOptions,
   ) => BridgeMessage<TType>;
+  updateCustomization: (
+    customization: OverlayCustomization,
+    options?: SendBridgeMessageOptions,
+  ) => BridgeMessage<"overlay:customization_update">;
   receiveMessage: (input: unknown, context: IncomingBridgeMessageContext) => BridgeReceiveResult;
   beginHandshake: (
     helloMessage: Extract<AnyBridgeMessage, { type: "overlay:hello" }>,
@@ -253,5 +304,5 @@ export interface CallbackTransportOptions {
 export interface PostMessageTransportOptions {
   targetWindow: Pick<Window, "postMessage">;
   targetOrigin: string;
-  messageType?: string;
+  messageType?: WebResearchBatchMessage["type"];
 }
