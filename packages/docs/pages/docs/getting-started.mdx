@@ -1,0 +1,127 @@
+# Getting Started
+
+## Install
+
+Core SDK only:
+
+```bash
+yarn add @insightfull/web-research-sdk
+```
+
+Core SDK with React helpers:
+
+```bash
+yarn add @insightfull/web-research-sdk @insightfull/web-research-sdk-react react react-dom
+```
+
+:::note
+`@insightfull/web-research-sdk-shared` is an internal workspace package and is **not** published to npm.
+:::
+
+## Minimal core setup
+
+```ts
+import { createWebResearchClient } from "@insightfull/web-research-sdk";
+
+const client = createWebResearchClient({
+  apiKey: "public-sdk-key",
+  sessionId: "session-123",
+});
+```
+
+`createWebResearchClient` requires an `apiKey`. It returns a `WebResearchClient` with methods for event tracking, browser capture, bridge management, and session lifecycle.
+
+## Browser capture session
+
+Start a live browser capture session with a pluggable transport:
+
+```ts
+import {
+  createCallbackTransport,
+  createWebResearchClient,
+} from "@insightfull/web-research-sdk";
+
+const client = createWebResearchClient({
+  apiKey: "public-sdk-key",
+  transport: createCallbackTransport({
+    onBatch(batch) {
+      console.log(batch.events);
+    },
+  }),
+  batching: {
+    batchSize: 20,
+    flushIntervalMs: 1000,
+  },
+});
+
+const session = client.startBrowserSession();
+```
+
+The runtime captures click, input, change, submit, and navigation events. Privacy-safe defaults are applied: no raw element text, minimized element descriptors, and navigation URLs redacted to origin + pathname.
+
+## React setup
+
+Wrap your app with `WebResearchProvider` and use hooks to access the client and overlay state:
+
+```tsx
+import { createElement } from "react";
+import {
+  WebResearchProvider,
+  createReactWebResearchClient,
+  OverlayBridgeFrame,
+} from "@insightfull/web-research-sdk-react";
+
+const client = createReactWebResearchClient({
+  apiKey: "public-sdk-key",
+  bridge: {
+    iframeOrigin: "https://overlay.example.com",
+    parentOrigin: window.location.origin,
+    handshake: {
+      overlayToken: "overlay-runtime-token",
+      overlayTokenExpiresAt: "2026-04-01T00:00:00.000Z",
+      context: {
+        organizationId: 1,
+        studyId: 10,
+        sectionId: 20,
+        sessionId: "session-123",
+        tabId: "tab-1",
+      },
+      uiConfig: {
+        defaultPosition: "bottom-right",
+        showAiPersona: true,
+      },
+      consent: {
+        mode: "required",
+        captureAllowed: true,
+      },
+    },
+  },
+});
+
+export function App() {
+  return createElement(
+    WebResearchProvider,
+    { client },
+    createElement(OverlayBridgeFrame, {
+      src: "https://overlay.example.com/embed",
+      title: "Insightfull overlay",
+    }),
+  );
+}
+```
+
+## Session lifecycle
+
+Use `flush`, `complete`, and `destroy` to manage the session:
+
+```ts
+await client.flush("manual_flush");
+await client.complete("session_complete");
+client.destroy("app_unmount");
+```
+
+## Next steps
+
+- [Customization](/docs/customization) — transport options, batching, bridge, and privacy defaults
+- [Core API reference](/docs/api/core) — full list of exports and types
+- [React API reference](/docs/api/react) — provider, hooks, and iframe host component

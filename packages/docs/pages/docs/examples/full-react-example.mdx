@@ -1,0 +1,130 @@
+# Full React Example
+
+A complete working React app using the SDK with browser capture and a callback transport.
+
+This example is adapted from the test app at [`packages/test-app-react/src/main.tsx`](https://github.com/insightfullai/web-research-sdk/blob/main/packages/test-app-react/src/main.tsx) in the repository.
+
+## Source
+
+```tsx
+import { useEffect, useRef, useState } from "react";
+import { createRoot } from "react-dom/client";
+import {
+  createCallbackTransport,
+  createWebResearchClient,
+  type WebResearchClient,
+  type WebResearchEventBatch,
+  type WebResearchTransportCompletePayload,
+} from "@insightfull/web-research-sdk";
+
+function getCurrentRoute() {
+  return `${window.location.pathname}${window.location.hash}`;
+}
+
+function App() {
+  const [batches, setBatches] = useState<WebResearchEventBatch[]>([]);
+  const [completions, setCompletions] = useState<WebResearchTransportCompletePayload[]>([]);
+  const [route, setRoute] = useState(() => getCurrentRoute());
+  const clientRef = useRef<WebResearchClient | null>(null);
+
+  if (!clientRef.current) {
+    clientRef.current = createWebResearchClient({
+      apiKey: "local-test-key",
+      sessionId: "local-session",
+      transport: createCallbackTransport({
+        onBatch: (batch) => {
+          setBatches((current) => [...current, batch]);
+        },
+        onComplete: (payload) => {
+          setCompletions((current) => [...current, payload]);
+        },
+      }),
+      batching: {
+        batchSize: 100,
+        flushIntervalMs: 0,
+      },
+    });
+  }
+
+  useEffect(() => {
+    const handleRoute = () => setRoute(getCurrentRoute());
+    window.addEventListener("popstate", handleRoute);
+    window.addEventListener("hashchange", handleRoute);
+
+    const client = clientRef.current as WebResearchClient;
+    const session = client.startBrowserSession();
+
+    return () => {
+      window.removeEventListener("popstate", handleRoute);
+      window.removeEventListener("hashchange", handleRoute);
+      void session.destroy("app_unmount");
+      client.destroy("app_unmount");
+    };
+  }, []);
+
+  const client = clientRef.current as WebResearchClient;
+
+  return (
+    <main>
+      <h1>Web Research SDK Test App</h1>
+      <p>{route}</p>
+      <section>
+        <h2>Interaction Controls</h2>
+        <button type="button">Primary CTA</button>
+        <form onSubmit={(e) => e.preventDefault()}>
+          <input name="email" />
+          <select name="plan" defaultValue="starter">
+            <option value="starter">Starter</option>
+            <option value="pro">Pro</option>
+          </select>
+          <button type="submit">Submit form</button>
+        </form>
+      </section>
+      <section>
+        <h2>Navigation</h2>
+        <button onClick={() => { window.history.pushState({}, "", "/checkout"); setRoute(getCurrentRoute()); }}>
+          Push history route
+        </button>
+        <button onClick={() => { window.location.hash = "confirmation"; setRoute(getCurrentRoute()); }}>
+          Update hash route
+        </button>
+        <button onClick={() => void client.flush("manual_flush")}>Flush</button>
+        <button onClick={() => void client.complete("manual_complete")}>Complete</button>
+      </section>
+      <section>
+        <h2>Captured Output</h2>
+        <p>{batches.length} batches</p>
+        <p>{completions.length} completions</p>
+        <pre>{JSON.stringify(batches.at(-1) ?? null, null, 2)}</pre>
+      </section>
+    </main>
+  );
+}
+
+createRoot(document.getElementById("root") as HTMLElement).render(<App />);
+```
+
+## What this demonstrates
+
+- **Client creation** with `createWebResearchClient` and a callback transport
+- **Browser session** started in a `useEffect` and destroyed on unmount
+- **SPA navigation capture** via `pushState` and hash changes
+- **Manual flush and complete** through the client methods
+- **React state integration** — batches and completions are displayed in the UI
+
+## Run it locally
+
+Clone the repository and start the test app:
+
+```bash
+git clone https://github.com/insightfullai/web-research-sdk.git
+cd web-research-sdk
+vp install
+yarn workspace @insightfull/web-research-sdk-test-app-react dev
+```
+
+## Repository
+
+Full source and additional examples:
+
+[github.com/insightfullai/web-research-sdk](https://github.com/insightfullai/web-research-sdk)

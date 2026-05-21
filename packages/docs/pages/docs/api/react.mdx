@@ -1,0 +1,162 @@
+# React Reference
+
+`@insightfull/web-research-sdk-react` — optional React integration package.
+
+Depends on `@insightfull/web-research-sdk` and peer-depends on `react` >= 18 and `react-dom` >= 18.
+
+## Exports
+
+### `WebResearchProvider`
+
+React context provider that makes a `WebResearchClient` available to nested components.
+
+```tsx
+<WebResearchProvider client={client}>
+  <App />
+</WebResearchProvider>
+```
+
+Or pass `clientOptions` to have the provider create the client internally:
+
+```tsx
+<WebResearchProvider clientOptions={{ apiKey: "public-sdk-key" }}>
+  <App />
+</WebResearchProvider>
+```
+
+Props:
+
+| Prop | Type | Description |
+| :--- | :--- | :--- |
+| `client` | `WebResearchClient` | Pre-created client instance. |
+| `clientOptions` | `WebResearchClientOptions` | Options to create a client internally. |
+| `children` | `ReactNode` | Child components. |
+| `destroyOnUnmount` | `boolean` | Whether to destroy the client on unmount (default: `true`). |
+
+---
+
+### `createReactWebResearchClient`
+
+Creates a `WebResearchClient` using the same options as the core `createWebResearchClient`. Useful for constructing a client outside the component tree.
+
+```ts
+function createReactWebResearchClient(options: WebResearchClientOptions): WebResearchClient;
+```
+
+---
+
+### `useWebResearchClient`
+
+Returns the `WebResearchClient` from the nearest `WebResearchProvider`. Throws if no provider is found.
+
+```ts
+const client = useWebResearchClient();
+```
+
+---
+
+### `useMaybeWebResearchClient`
+
+Returns the `WebResearchClient` from the nearest provider, or `null` if no provider exists.
+
+```ts
+const client = useMaybeWebResearchClient();
+```
+
+---
+
+### `useOverlayBridgeStatus`
+
+Returns a derived status object from the bridge snapshot.
+
+```ts
+const status = useOverlayBridgeStatus(client?);
+```
+
+Returns `OverlayBridgeStatus`:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `lifecycleState` | `SdkLifecycleState` | Current bridge state. |
+| `isReady` | `boolean` | `true` when state is `"READY"`. |
+| `isDegraded` | `boolean` | `true` when state is `"DEGRADED"`. |
+| `isTerminated` | `boolean` | `true` when state is `"TERMINATED"`. |
+| `isHandshakePending` | `boolean` | `true` when state is `"HANDSHAKE_PENDING"`. |
+
+Accepts an optional `client` argument; otherwise uses the nearest provider.
+
+---
+
+### `useOverlayBridgeSnapshot`
+
+Returns the full `OverlayBridgeSnapshot` using `useSyncExternalStore`.
+
+```ts
+const snapshot = useOverlayBridgeSnapshot(client?);
+```
+
+---
+
+### `getOverlayBridgeStatus`
+
+Derives an `OverlayBridgeStatus` from a snapshot. Non-hook version of `useOverlayBridgeStatus`.
+
+```ts
+const status = getOverlayBridgeStatus(snapshot);
+```
+
+---
+
+### `OverlayBridgeFrame`
+
+Drop-in iframe component with secure defaults for mounting the overlay.
+
+```tsx
+<OverlayBridgeFrame
+  src="https://overlay.example.com/embed"
+  title="Insightfull overlay"
+/>
+```
+
+Applied defaults:
+
+- `allow="microphone; camera; autoplay"`
+- `sandbox="allow-scripts allow-same-origin allow-forms allow-popups"`
+- `referrerPolicy="strict-origin-when-cross-origin"`
+
+Props extend standard iframe attributes. You can override `allow`, `sandbox`, and `style`.
+
+---
+
+### `useOverlayBridgeHost`
+
+Lower-level hook for full control over the iframe element and bridge lifecycle.
+
+```ts
+const { iframeProps, snapshot, status, postMessage } = useOverlayBridgeHost({
+  src: "https://overlay.example.com/embed",
+  client,
+  iframeRef,
+  autoBeginHandshake: true,
+  terminateOnUnmount: true,
+});
+```
+
+Returns `OverlayBridgeHostResult`:
+
+| Field | Type | Description |
+| :--- | :--- | :--- |
+| `iframeProps` | `OverlayBridgeIframeProps` | Props to spread onto your own `<iframe>`. |
+| `snapshot` | `OverlayBridgeSnapshot` | Current bridge snapshot. |
+| `status` | `OverlayBridgeStatus` | Derived status flags. |
+| `postMessage` | `(message: AnyBridgeMessage) => void` | Send a message to the iframe. |
+
+---
+
+### `mergeOverlayIframeRef`
+
+Utility to merge multiple iframe refs (for example, combining a forwarded ref with the internal ref).
+
+```ts
+const mergedRef = mergeOverlayIframeRef(forwardedRef, internalRef);
+```

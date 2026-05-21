@@ -38,3 +38,6 @@ jobs:
 
       - name: Dry-run npm package contents
         run: corepack yarn pack:dry-run
+
+      - name: Build docs
+        run: corepack yarn docs:build

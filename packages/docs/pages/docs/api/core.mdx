@@ -1,0 +1,176 @@
+# Core SDK Reference
+
+`@insightfull/web-research-sdk` — framework-agnostic client, browser capture, and overlay bridge runtime.
+
+## Exports
+
+### `createWebResearchClient`
+
+Creates a new SDK client instance.
+
+```ts
+function createWebResearchClient(options: WebResearchClientOptions): WebResearchClient;
+```
+
+**`WebResearchClientOptions`**
+
+| Property | Type | Description |
+| :--- | :--- | :--- |
+| `apiKey` | `string` | **Required.** Public SDK key. |
+| `endpoint` | `string` | Backend endpoint override. Defaults to `https://api.insightfull.ai/web-research`. |
+| `sessionId` | `string` | Explicit session ID. Defaults to a random UUID. |
+| `bridge` | `WebResearchBridgeOptions` | Overlay bridge configuration. |
+| `transport` | `WebResearchTransport` | Default transport for event batches. |
+| `batching` | `WebResearchBatchingOptions` | Default batching configuration. |
+
+**`WebResearchClient`**
+
+| Method | Description |
+| :--- | :--- |
+| `getSession()` | Returns `SessionMetadata` with `sessionId` and `startedAt`. |
+| `track(event)` | Track a custom `SdkEvent` manually. |
+| `flush(reason?)` | Flush buffered events through the transport. |
+| `complete(reason?)` | Complete the session and flush remaining events. |
+| `startBrowserSession(options?)` | Start automatic browser event capture. Returns `BrowserSessionController`. |
+| `getLifecycleState()` | Returns the current bridge `SdkLifecycleState`. |
+| `bridge` | `OverlayBridgeController` for iframe message management. |
+| `destroy(reason?)` | Tear down browser session, queue, and bridge. |
+
+---
+
+### `createCallbackTransport`
+
+Creates a transport that calls functions on flush and complete.
+
+```ts
+function createCallbackTransport(options: CallbackTransportOptions): WebResearchTransport;
+```
+
+| Option | Type | Description |
+| :--- | :--- | :--- |
+| `onBatch` | `(batch: WebResearchEventBatch) => void \| Promise<void>` | **Required.** Called on each flush. |
+| `onComplete` | `(payload: WebResearchTransportCompletePayload) => void \| Promise<void>` | Called on session completion. |
+
+---
+
+### `createPostMessageTransport`
+
+Creates a transport that sends batches to a target window via `postMessage`.
+
+```ts
+function createPostMessageTransport(options: PostMessageTransportOptions): WebResearchTransport;
+```
+
+| Option | Type | Description |
+| :--- | :--- | :--- |
+| `targetWindow` | `Pick<Window, "postMessage">` | **Required.** Target window reference. |
+| `targetOrigin` | `string` | **Required.** Target origin for `postMessage`. |
+| `messageType` | `string` | Custom message type identifier. |
+
+---
+
+### `WebResearchEventQueue`
+
+Event queue with batching, flush, and completion support. Used internally by the client.
+
+---
+
+### `BrowserWebResearchSession`
+
+Browser event capture runtime. Used internally via `client.startBrowserSession()`.
+
+---
+
+### Bridge helpers
+
+#### `OverlayBridgeRuntime`
+
+Manages overlay iframe bridge state, message validation, handshake progression, and ack/retry.
+
+#### `createBridgeMessageEnvelope`
+
+Creates a typed bridge message envelope with the correct namespace, version, and sequence.
+
+```ts
+function createBridgeMessageEnvelope<TType extends BridgeMessageType>(
+  options: CreateBridgeMessageEnvelopeOptions<TType>,
+): BridgeMessage<TType>;
+```
+
+#### `validateBridgeOrigin`
+
+Validates incoming message origins against expected and allowed origins.
+
+#### `validateSupportedBridgeVersion`
+
+Checks if a requested bridge version is supported.
+
+#### `SUPPORTED_BRIDGE_VERSIONS`
+
+Readonly array of supported bridge protocol versions.
+
+---
+
+## Key types
+
+### `WebResearchTransport`
+
+```ts
+interface WebResearchTransport {
+  send: (batch: WebResearchEventBatch) => Promise<void> | void;
+  complete?: (payload: WebResearchTransportCompletePayload) => Promise<void> | void;
+}
+```
+
+### `WebResearchEventBatch`
+
+```ts
+interface WebResearchEventBatch {
+  session: SessionMetadata;
+  events: readonly TrackedSdkEvent[];
+  reason: string;
+}
+```
+
+### `BrowserSessionController`
+
+```ts
+interface BrowserSessionController {
+  start: () => void;
+  flush: (reason?: string) => Promise<void>;
+  complete: (reason?: string) => Promise<void>;
+  destroy: (reason?: string) => Promise<void>;
+  getSnapshot: () => BrowserSessionSnapshot;
+}
+```
+
+### `BrowserSessionSnapshot`
+
+```ts
+interface BrowserSessionSnapshot {
+  active: boolean;
+  capturedEvents: number;
+  bufferedEvents: number;
+  lastFlushAt?: string;
+}
+```
+
+### `OverlayBridgeController`
+
+```ts
+interface OverlayBridgeController {
+  mount: () => void;
+  markIframeLoaded: () => void;
+  getState: () => SdkLifecycleState;
+  getSnapshot: () => OverlayBridgeSnapshot;
+  subscribe: (listener: (snapshot: OverlayBridgeSnapshot) => void) => () => void;
+  sendMessage: <T>(type: T, payload: ...) => BridgeMessage<T>;
+  receiveMessage: (input: unknown, context: IncomingBridgeMessageContext) => BridgeReceiveResult;
+  beginHandshake: (helloMessage, options?) => BridgeMessage<"overlay:init">;
+  terminate: (reason?: string) => void;
+}
+```
+
+### Lifecycle states
+
+`SdkLifecycleState`: `"UNMOUNTED"` | `"IFRAME_LOADING"` | `"HANDSHAKE_PENDING"` | `"READY"` | `"DEGRADED"` | `"TERMINATED"`

@@ -1,0 +1,201 @@
+# Customization
+
+## Transport
+
+The SDK ships two built-in transports. You can also provide your own by implementing the `WebResearchTransport` interface.
+
+### Callback transport
+
+Calls a function for each batch flush. Useful for sending events to your own backend or logging pipeline.
+
+```ts
+import {
+  createCallbackTransport,
+  createWebResearchClient,
+} from "@insightfull/web-research-sdk";
+
+const client = createWebResearchClient({
+  apiKey: "public-sdk-key",
+  transport: createCallbackTransport({
+    onBatch(batch) {
+      fetch("/api/events", {
+        method: "POST",
+        body: JSON.stringify(batch),
+      });
+    },
+    onComplete(payload) {
+      fetch("/api/complete", {
+        method: "POST",
+        body: JSON.stringify(payload),
+      });
+    },
+  }),
+});
+```
+
+### PostMessage transport
+
+Sends batches to a target window (for example, a parent frame or a separate analytics iframe).
+
+```ts
+import {
+  createPostMessageTransport,
+  createWebResearchClient,
+} from "@insightfull/web-research-sdk";
+
+const client = createWebResearchClient({
+  apiKey: "public-sdk-key",
+  transport: createPostMessageTransport({
+    targetWindow: window.parent,
+    targetOrigin: "https://analytics.example.com",
+  }),
+});
+```
+
+### Custom transport
+
+Implement the `WebResearchTransport` interface:
+
+```ts
+import type { WebResearchTransport } from "@insightfull/web-research-sdk";
+
+const myTransport: WebResearchTransport = {
+  send(batch) {
+    console.log("sending", batch.events.length, "events");
+  },
+  complete(payload) {
+    console.log("session completed:", payload.reason);
+  },
+};
+```
+
+## Batching
+
+Control how events are grouped and flushed:
+
+```ts
+const client = createWebResearchClient({
+  apiKey: "public-sdk-key",
+  transport: myTransport,
+  batching: {
+    batchSize: 50,
+    flushIntervalMs: 2000,
+  },
+});
+```
+
+- `batchSize` — flush after this many events accumulate (default: 50)
+- `flushIntervalMs` — flush after this many milliseconds (default: 1000)
+
+Set `flushIntervalMs: 0` to flush immediately after every event.
+
+## Manual event tracking
+
+Track custom events alongside automatic browser capture:
+
+```ts
+await client.track({
+  name: "custom_event",
+  payload: { action: "plan_upgraded", plan: "pro" },
+});
+```
+
+Manual events are sent through the same queue and transport as browser-captured events.
+
+## Browser session options
+
+`startBrowserSession` accepts options to control capture behavior:
+
+```ts
+const session = client.startBrowserSession({
+  transport: myTransport,
+  batching: { batchSize: 100, flushIntervalMs: 0 },
+  captureInitialNavigation: false,
+});
+```
+
+- `transport` — override the client-level transport for this session
+- `batching` — override the client-level batching for this session
+- `captureInitialNavigation` — capture the initial page load as a navigation event (default: `true`)
+
+You can also pass `window` and `document` to capture events from a specific iframe realm:
+
+```ts
+const session = client.startBrowserSession({
+  window: iframe.contentWindow,
+  document: iframe.contentDocument,
+});
+```
+
+## Overlay bridge
+
+Configure the secure `postMessage` bridge between your host page and the overlay iframe:
+
+```ts
+const client = createWebResearchClient({
+  apiKey: "public-sdk-key",
+  bridge: {
+    iframeOrigin: "https://overlay.example.com",
+    parentOrigin: window.location.origin,
+    handshake: {
+      overlayToken: "overlay-runtime-token",
+      overlayTokenExpiresAt: "2026-04-01T00:00:00.000Z",
+      context: {
+        organizationId: 1,
+        studyId: 10,
+        sectionId: 20,
+        sessionId: "session-123",
+        tabId: "tab-1",
+      },
+      uiConfig: {
+        defaultPosition: "bottom-right",
+        showAiPersona: true,
+      },
+      consent: {
+        mode: "required",
+        captureAllowed: true,
+      },
+    },
+  },
+});
+```
+
+Key constraints:
+
+- `iframeOrigin` must be an explicit `https` origin
+- Do not put overlay or session tokens in iframe URL query params
+- The bridge validates origin and protocol version on every message
+- Unknown or schema-invalid messages are rejected with diagnostics
+
+### Bridge lifecycle
+
+The bridge progresses through defined states: `UNMOUNTED` → `IFRAME_LOADING` → `HANDSHAKE_PENDING` → `READY` (or `DEGRADED`/`TERMINATED` on failure).
+
+```ts
+const state = client.getLifecycleState();
+```
+
+### Retry policy
+
+Configure ack timeouts and retry behavior:
+
+```ts
+bridge: {
+  retryPolicy: {
+    ackTimeoutMs: 1500,
+    maxRetries: 2,
+    backoffMs: [300, 800],
+  },
+}
+```
+
+## Privacy-safe capture defaults
+
+The browser capture runtime applies these defaults automatically:
+
+- No raw element text is captured
+- Element descriptors are minimized (tag, role, whether `data-testid` is present)
+- Navigation URLs are redacted to origin + pathname; `hasQuery` and `hasHash` flags are preserved
+- Input values are not captured; only `valueLength` is recorded
+
+These defaults cannot be overridden to capture raw PII through the public SDK API.

@@ -1,0 +1,53 @@
+# Insightfull Web Research SDK
+
+Open-source SDK for integrating live website research sessions into your application.
+
+---
+
+## What it does
+
+The **Web Research SDK** provides host-side primitives for running research sessions on real websites:
+
+- **Automatic behavioral capture** — clicks, input changes, form submissions, and SPA navigation transitions, all with privacy-safe defaults (no raw element text, no input values by default).
+- **Secure overlay bridge** — connect a hosted overlay iframe through a versioned `postMessage` protocol with origin validation, capability negotiation, and graceful degradation.
+- **Pluggable transport** — send captured events through your own backend via callback or `postMessage` transports with configurable batching and flush policies.
+- **React integration** — optional provider, hooks, and iframe host component built on top of the framework-agnostic core.
+
+---
+
+## Quick example
+
+```ts
+import {
+  createWebResearchClient,
+  createCallbackTransport,
+} from "@insightfull/web-research-sdk";
+
+const client = createWebResearchClient({
+  apiKey: "public-sdk-key",
+  transport: createCallbackTransport({
+    onBatch(batch) {
+      console.log(batch.events);
+    },
+  }),
+});
+
+client.startBrowserSession();
+```
+
+---
+
+## Packages
+
+| Package | Description |
+| :--- | :--- |
+| [`@insightfull/web-research-sdk`](/docs/api/core) | Core client, browser capture, and bridge runtime |
+| [`@insightfull/web-research-sdk-react`](/docs/api/react) | React provider, hooks, and iframe host component |
+
+---
+
+## Next steps
+
+- [Getting started](/docs/getting-started) — install and run your first session
+- [Customization](/docs/customization) — transports, batching, and bridge configuration
+- [Full React example](/docs/examples/full-react-example) — complete working app
