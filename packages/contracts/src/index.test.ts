@@ -7,6 +7,8 @@ import {
   buildValidWebResearchTaskCompleteSignalFixture,
   buildValidWebResearchBatchFixture,
   buildValidWebResearchCompleteFixture,
+  buildValidWebResearchDiagnosticFixture,
+  buildValidWebResearchSessionErrorFixture,
   parseWebResearchBatchMessage,
   parseWebResearchCompleteMessage,
   parseWebResearchHandshakeInitMessage,
@@ -14,7 +16,10 @@ import {
   parseWebResearchMessage,
   parseWebResearchTaskAbandonSignalMessage,
   parseWebResearchTaskCompleteSignalMessage,
+  parseWebResearchDiagnosticMessage,
+  parseWebResearchSessionErrorMessage,
   WEB_RESEARCH_PROTOCOL_VERSION,
+  WEB_RESEARCH_DIAGNOSTIC_CODES,
 } from "./index";
 
 describe("contracts schema parsing", () => {
@@ -221,6 +226,99 @@ describe("contracts schema parsing", () => {
 
       const result = parseWebResearchBatchMessage(fixture);
       expect(result.success).toBe(true);
+    });
+  });
+
+  describe("circular reference payload", () => {
+    it("rejects circular reference payload", () => {
+      const fixture = buildValidWebResearchBatchFixture();
+      const circular: Record<string, unknown> = {};
+      circular.self = circular;
+      fixture.events = [
+        {
+          id: "event-1",
+          name: "navigation",
+          capturedAt: "2026-04-10T12:00:01.000Z",
+          sessionId: "session-1",
+          source: "browser",
+          payload: circular,
+        },
+      ];
+
+      const result = parseWebResearchBatchMessage(fixture);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.issues.some((issue) => issue.message.includes("circular references"))).toBe(true);
+      }
+    });
+  });
+
+  describe("batch event count limit", () => {
+    it("rejects batch exceeding 200 events", () => {
+      const fixture = buildValidWebResearchBatchFixture();
+      const events = Array.from({ length: 201 }, (_, i) => ({
+        id: `event-${i}`,
+        name: "navigation",
+        capturedAt: "2026-04-10T12:00:01.000Z",
+        sessionId: "session-1",
+        source: "browser",
+        payload: { path: "/home" },
+      }));
+      fixture.events = events;
+
+      const result = parseWebResearchBatchMessage(fixture);
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.issues.some((issue) => issue.message.includes("Event count exceeds maximum"))).toBe(true);
+      }
+    });
+  });
+
+  describe("session error message", () => {
+    it("accepts valid session error message", () => {
+      const result = parseWebResearchSessionErrorMessage(
+        buildValidWebResearchSessionErrorFixture(),
+      );
+      expect(result.success).toBe(true);
+      if (result.success) {
+        expect(result.value.code).toBe("session_expired");
+        expect(result.value.recoverable).toBe(false);
+      }
+    });
+
+    it("rejects session error with invalid code", () => {
+      const result = parseWebResearchSessionErrorMessage(
+        buildValidWebResearchSessionErrorFixture({ code: "unknown_error" as "session_expired" }),
+      );
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.issues.some((issue) => issue.path === "code")).toBe(true);
+      }
+    });
+
+    it("rejects session error with non-boolean recoverable", () => {
+      const result = parseWebResearchSessionErrorMessage({
+        ...buildValidWebResearchSessionErrorFixture(),
+        recoverable: "yes" as unknown as boolean,
+      });
+      expect(result.success).toBe(false);
+      if (!result.success) {
+        expect(result.issues.some((issue) => issue.path === "recoverable")).toBe(true);
+      }
+    });
+  });
+
+  describe("diagnostic message", () => {
+    it("accepts diagnostic message with each valid code", () => {
+      for (const code of WEB_RESEARCH_DIAGNOSTIC_CODES) {
+        const result = parseWebResearchDiagnosticMessage(
+          buildValidWebResearchDiagnosticFixture({ code }),
+        );
+        expect(result.success).toBe(true);
+        if (result.success) {
+          expect(result.value.code).toBe(code);
+        }
+      }
     });
   });
 });

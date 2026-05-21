@@ -10,6 +10,7 @@ import {
   WEB_RESEARCH_HANDSHAKE_INIT_MESSAGE_TYPE,
   WEB_RESEARCH_HANDSHAKE_READY_MESSAGE_TYPE,
   WEB_RESEARCH_MESSAGE_TYPES,
+  WEB_RESEARCH_SESSION_ERROR_CODES,
   WEB_RESEARCH_SESSION_ERROR_MESSAGE_TYPE,
   WEB_RESEARCH_TASK_ABANDON_MESSAGE_TYPE,
   WEB_RESEARCH_TASK_COMPLETE_MESSAGE_TYPE,
@@ -41,9 +42,11 @@ const ENVIRONMENT_SET = new Set<string>(WEB_RESEARCH_ENVIRONMENTS);
 const SUPPORTED_VERSION_SET = new Set<string>(SUPPORTED_WEB_RESEARCH_PROTOCOL_VERSIONS);
 const TASK_SIGNAL_STATUS_SET = new Set<string>(WEB_RESEARCH_TASK_SIGNAL_STATUSES);
 const DIAGNOSTIC_CODE_SET = new Set<string>(WEB_RESEARCH_DIAGNOSTIC_CODES);
+const SESSION_ERROR_CODE_SET = new Set<string>(WEB_RESEARCH_SESSION_ERROR_CODES);
 
 const MAX_EVENT_PAYLOAD_DEPTH = 5;
 const MAX_EVENT_PAYLOAD_SIZE_BYTES = 10240;
+const MAX_EVENTS_PER_BATCH = 200;
 
 export function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
@@ -252,12 +255,22 @@ function validateWebResearchEvent(
   if (isRecord(input.payload)) {
     valid = validatePayloadDepth(input.payload, MAX_EVENT_PAYLOAD_DEPTH, 1, `${path}.payload`, issues) && valid;
 
-    if (JSON.stringify(input.payload).length > MAX_EVENT_PAYLOAD_SIZE_BYTES) {
+    try {
+      if (JSON.stringify(input.payload).length > MAX_EVENT_PAYLOAD_SIZE_BYTES) {
+        pushIssue(
+          issues,
+          "INVALID_PAYLOAD",
+          `${path}.payload`,
+          `Payload size exceeds maximum of ${MAX_EVENT_PAYLOAD_SIZE_BYTES} bytes`,
+        );
+        valid = false;
+      }
+    } catch {
       pushIssue(
         issues,
         "INVALID_PAYLOAD",
         `${path}.payload`,
-        `Payload size exceeds maximum of ${MAX_EVENT_PAYLOAD_SIZE_BYTES} bytes`,
+        "Payload contains circular references and cannot be serialized",
       );
       valid = false;
     }
@@ -317,6 +330,15 @@ export function validateWebResearchBatchMessage(
     pushIssue(issues, "INVALID_PAYLOAD", "events", "Expected array");
     valid = false;
   } else {
+    if (input.events.length > MAX_EVENTS_PER_BATCH) {
+      pushIssue(
+        issues,
+        "INVALID_PAYLOAD",
+        "events",
+        `Event count exceeds maximum of ${MAX_EVENTS_PER_BATCH}`,
+      );
+      valid = false;
+    }
     input.events.forEach((event, index) => {
       valid = validateWebResearchEvent(event, `events[${index}]`, issues) && valid;
     });
@@ -585,8 +607,8 @@ export function validateWebResearchSessionErrorMessage(
 
   let valid = true;
 
-  if (!isNonEmptyString(input.code)) {
-    pushIssue(issues, "INVALID_PAYLOAD", "code", "Expected non-empty string");
+  if (!isNonEmptyString(input.code) || !SESSION_ERROR_CODE_SET.has(input.code)) {
+    pushIssue(issues, "INVALID_PAYLOAD", "code", `Expected one of: ${WEB_RESEARCH_SESSION_ERROR_CODES.join(", ")}`);
     valid = false;
   }
 
@@ -609,7 +631,7 @@ export function validateWebResearchSessionErrorMessage(
       version: envelope.version as WebResearchSessionErrorMessage["version"],
       session: envelope.session,
       sentAt: envelope.sentAt,
-      code: input.code as string,
+      code: input.code as WebResearchSessionErrorMessage["code"],
       message: input.message as string,
       recoverable: input.recoverable as boolean,
     },

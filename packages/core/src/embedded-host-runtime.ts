@@ -1,8 +1,8 @@
 import {
   isNonEmptyString,
   isRecord,
+  validateWebResearchHandshakeReadyMessage,
   WEB_RESEARCH_HANDSHAKE_INIT_MESSAGE_TYPE,
-  WEB_RESEARCH_HANDSHAKE_READY_MESSAGE_TYPE,
   WEB_RESEARCH_PROTOCOL_VERSION,
   WEB_RESEARCH_TASK_ABANDON_MESSAGE_TYPE,
   WEB_RESEARCH_TASK_COMPLETE_MESSAGE_TYPE,
@@ -32,6 +32,7 @@ export interface EmbeddedHostRuntimeOptions {
   handshakeTimeoutMs?: number;
   captureOptions?: Omit<StartBrowserSessionOptions, "transport">;
   overlay?: import("./types").EmbeddedOverlayOptions;
+  mediaPermissions?: boolean;
   onStateChange?: (
     state: SdkLifecycleState,
     previousState: SdkLifecycleState,
@@ -107,8 +108,8 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
     const iframe = document.createElement("iframe");
     iframe.src = this.options.iframeSrc;
     iframe.title = "Insightfull overlay";
-    iframe.allow = "microphone; camera; autoplay";
-    iframe.setAttribute("sandbox", "allow-scripts allow-same-origin allow-forms allow-popups");
+    if (this.options.mediaPermissions) { iframe.allow = "microphone; camera; autoplay"; }
+    iframe.setAttribute("sandbox", "allow-scripts allow-forms allow-popups");
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
     iframe.style.position = "fixed";
     iframe.style.width = overlay?.width ?? "420px";
@@ -251,15 +252,16 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
       return;
     }
 
-    if (source && source !== iframeWindow) {
+    if (source !== iframeWindow) {
       return;
     }
 
-    if (!isHandshakeReadyMessage(message)) {
+    const handshakeResult = validateWebResearchHandshakeReadyMessage(message);
+    if (!handshakeResult.success) {
       return;
     }
 
-    if (message.session.sessionId !== this.options.client.getSession().sessionId) {
+    if (handshakeResult.value.session.sessionId !== this.options.client.getSession().sessionId) {
       return;
     }
 
@@ -386,23 +388,6 @@ function normalizeEvidence(
   }
 
   return normalized;
-}
-
-function isHandshakeReadyMessage(message: unknown): message is {
-  type: typeof WEB_RESEARCH_HANDSHAKE_READY_MESSAGE_TYPE;
-  version: typeof WEB_RESEARCH_PROTOCOL_VERSION;
-  session: { sessionId: string };
-} {
-  if (!isRecord(message) || !isRecord(message.session)) {
-    return false;
-  }
-
-  return (
-    message.type === WEB_RESEARCH_HANDSHAKE_READY_MESSAGE_TYPE &&
-    message.version === WEB_RESEARCH_PROTOCOL_VERSION &&
-    typeof message.session.sessionId === "string" &&
-    message.session.sessionId.length > 0
-  );
 }
 
 export function createEmbeddedHostRuntime(

@@ -1,3 +1,5 @@
+import { isRecord } from "@insightfull/web-research-sdk-contracts";
+
 import {
   RUNTIME_ENVIRONMENTS,
   type RuntimeEnvironment,
@@ -21,10 +23,6 @@ const DEFAULT_ENDPOINT = "https://api.insightfull.ai/web-research";
 
 function isRuntimeEnvironment(value: unknown): value is RuntimeEnvironment {
   return typeof value === "string" && RUNTIME_ENVIRONMENTS.includes(value as RuntimeEnvironment);
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return typeof value === "object" && value !== null;
 }
 
 class DefaultWebResearchClient implements WebResearchClient {

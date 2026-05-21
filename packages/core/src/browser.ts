@@ -1,3 +1,5 @@
+import { isRecord } from "@insightfull/web-research-sdk-contracts";
+
 import type {
   BrowserSessionController,
   BrowserSessionSnapshot,
@@ -17,10 +19,6 @@ interface ElementLike {
 
 interface FormFieldLike extends ElementLike {
   value: unknown;
-}
-
-function isRecord(value: unknown): value is Record<string, unknown> {
-  return value !== null && typeof value === "object";
 }
 
 function getElementTagName(value: unknown): string | null {

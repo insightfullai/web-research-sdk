@@ -44,3 +44,10 @@ export const WEB_RESEARCH_DIAGNOSTIC_CODES = [
   "UNSUPPORTED_VERSION",
   "UNKNOWN_MESSAGE_TYPE",
 ] as const;
+
+export const WEB_RESEARCH_SESSION_ERROR_CODES = [
+  "session_expired",
+  "auth_failed",
+  "forbidden",
+  "internal_error",
+] as const;

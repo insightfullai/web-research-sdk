@@ -231,7 +231,7 @@ export function createCallbackTransport(options: CallbackTransportOptions): WebR
 export function createPostMessageTransport(
   options: PostMessageTransportOptions,
 ): WebResearchTransport {
-  const batchMessageType = options.messageType ?? WEB_RESEARCH_BATCH_MESSAGE_TYPE;
+  const batchMessageType = WEB_RESEARCH_BATCH_MESSAGE_TYPE;
 
   return {
     send(batch) {

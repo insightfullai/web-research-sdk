@@ -34,6 +34,10 @@ const DEFAULT_HELLO_TIMEOUT_MS = 5_000;
 const DEFAULT_READY_TIMEOUT_MS = 5_000;
 const DEFAULT_ENDPOINT_PARENT_ORIGIN = "https://api.insightfull.ai";
 
+const MAX_MESSAGE_DECISIONS = 10_000;
+const MAX_DIAGNOSTICS = 1_000;
+const MAX_SENDER_KEYS = 100;
+
 type TimerApi = Pick<typeof globalThis, "setTimeout" | "clearTimeout">;
 
 interface BridgeRuntimeDependencies extends TimerApi {
@@ -362,6 +366,17 @@ export class OverlayBridgeRuntime implements OverlayBridgeController {
     }
 
     const message = validationResult.value;
+
+    const spec = BRIDGE_MESSAGE_SPECS[message.type as keyof typeof BRIDGE_MESSAGE_SPECS];
+    if (spec && spec.direction === "sdk-to-overlay") {
+      this.emitDiagnostic("BRG_COMMAND_NOT_ALLOWED", `Message type ${message.type} has direction sdk-to-overlay and cannot be received from overlay`);
+      return {
+        accepted: false,
+        duplicate: false,
+        reason: `Message type ${message.type} has direction sdk-to-overlay and cannot be received from overlay`,
+      };
+    }
+
     const existingDecision = this.messageDecisions.get(message.messageId);
     if (existingDecision) {
       this.emitDiagnostic("BRG_DUPLICATE_MESSAGE", "Duplicate message ignored", {
@@ -534,6 +549,13 @@ export class OverlayBridgeRuntime implements OverlayBridgeController {
     decision: MessageDecisionRecord,
   ): BridgeReceiveResult {
     this.messageDecisions.set(message.messageId, decision);
+    if (this.messageDecisions.size > MAX_MESSAGE_DECISIONS) {
+      const keys = [...this.messageDecisions.keys()];
+      const evictCount = Math.ceil(keys.length * 0.2);
+      for (let i = 0; i < evictCount; i++) {
+        this.messageDecisions.delete(keys[i]);
+      }
+    }
     return {
       accepted: decision.accepted,
       duplicate: false,
@@ -624,6 +646,13 @@ export class OverlayBridgeRuntime implements OverlayBridgeController {
     }
 
     this.lastSequenceBySender.set(senderKey, message.sequence);
+    if (this.lastSequenceBySender.size > MAX_SENDER_KEYS) {
+      const keys = [...this.lastSequenceBySender.keys()];
+      const evictCount = Math.ceil(keys.length * 0.2);
+      for (let i = 0; i < evictCount; i++) {
+        this.lastSequenceBySender.delete(keys[i]);
+      }
+    }
   }
 
   private transitionTo(state: OverlayBridgeSnapshot["state"]): void {
@@ -650,7 +679,10 @@ export class OverlayBridgeRuntime implements OverlayBridgeController {
         "details",
         details,
       ) as BridgeRuntimeDiagnostic,
-    );
+     );
+    while (this.diagnostics.length > MAX_DIAGNOSTICS) {
+      this.diagnostics.shift();
+    }
   }
 
   private scheduleHelloTimeout(): void {

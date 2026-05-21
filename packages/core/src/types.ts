@@ -1,5 +1,3 @@
-import type { WebResearchBatchMessage } from "@insightfull/web-research-sdk-contracts";
-
 import type {
   AnyBridgeMessage,
   BridgeCapability,
@@ -304,5 +302,4 @@ export interface CallbackTransportOptions {
 export interface PostMessageTransportOptions {
   targetWindow: Pick<Window, "postMessage">;
   targetOrigin: string;
-  messageType?: WebResearchBatchMessage["type"];
 }

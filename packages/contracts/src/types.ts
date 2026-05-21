@@ -1,9 +1,11 @@
 import type {
   SUPPORTED_WEB_RESEARCH_PROTOCOL_VERSIONS,
+  WEB_RESEARCH_DIAGNOSTIC_CODES,
   WEB_RESEARCH_ENVIRONMENTS,
   WEB_RESEARCH_EVENT_NAMES,
   WEB_RESEARCH_EVENT_SOURCES,
   WEB_RESEARCH_MESSAGE_TYPES,
+  WEB_RESEARCH_SESSION_ERROR_CODES,
   WEB_RESEARCH_TASK_SIGNAL_NAMES,
   WEB_RESEARCH_TASK_SIGNAL_STATUSES,
 } from "./constants";
@@ -16,11 +18,9 @@ export type WebResearchEventSource = (typeof WEB_RESEARCH_EVENT_SOURCES)[number]
 export type WebResearchTaskSignalName = (typeof WEB_RESEARCH_TASK_SIGNAL_NAMES)[number];
 export type WebResearchTaskSignalStatus = (typeof WEB_RESEARCH_TASK_SIGNAL_STATUSES)[number];
 
-export type WebResearchDiagnosticCode =
-  | "SCHEMA_ERROR"
-  | "ORIGIN_MISMATCH"
-  | "UNSUPPORTED_VERSION"
-  | "UNKNOWN_MESSAGE_TYPE";
+export type WebResearchDiagnosticCode = (typeof WEB_RESEARCH_DIAGNOSTIC_CODES)[number];
+
+export type WebResearchSessionErrorCode = (typeof WEB_RESEARCH_SESSION_ERROR_CODES)[number];
 
 export interface WebResearchSession {
   sessionId: string;
@@ -68,6 +68,11 @@ export interface WebResearchCompleteMessage {
   reason: string;
 }
 
+export interface WebResearchTaskSignalEvidence {
+  note?: string;
+  metadata?: Record<string, unknown>;
+}
+
 export interface WebResearchTaskCompleteSignalMessage {
   type: "insightfull:web-research-signal:task_complete";
   version: WebResearchProtocolVersion;
@@ -76,10 +81,7 @@ export interface WebResearchTaskCompleteSignalMessage {
   signal: "task_complete";
   status: "completed";
   taskId: string;
-  evidence: {
-    note?: string;
-    metadata?: Record<string, unknown>;
-  };
+  evidence: WebResearchTaskSignalEvidence;
 }
 
 export interface WebResearchTaskAbandonSignalMessage {
@@ -91,10 +93,7 @@ export interface WebResearchTaskAbandonSignalMessage {
   status: "abandoned";
   taskId: string;
   reason: string;
-  evidence: {
-    note?: string;
-    metadata?: Record<string, unknown>;
-  };
+  evidence: WebResearchTaskSignalEvidence;
 }
 
 export interface WebResearchDiagnosticMessage {
@@ -111,7 +110,7 @@ export interface WebResearchSessionErrorMessage {
   version: WebResearchProtocolVersion;
   session: WebResearchSession;
   sentAt: string;
-  code: string;
+  code: WebResearchSessionErrorCode;
   message: string;
   recoverable: boolean;
 }

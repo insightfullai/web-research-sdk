@@ -67,7 +67,7 @@ describe("EmbeddedHostRuntime", () => {
     const { postMessage } = getIframeWindow(iframe);
 
     iframe.dispatchEvent(new Event("load"));
-    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com");
+    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com", iframe.contentWindow);
 
     expect(runtime.getState()).toBe("READY");
     expect(postMessage.mock.calls[0]?.[1]).toBe("https://overlay.example.com");
@@ -103,7 +103,7 @@ describe("EmbeddedHostRuntime", () => {
     const { postMessage } = getIframeWindow(iframe);
     iframe.dispatchEvent(new Event("load"));
 
-    runtime.receiveMessage(buildReadyMessage(), "https://attacker.example.com");
+    runtime.receiveMessage(buildReadyMessage(), "https://attacker.example.com", iframe.contentWindow);
 
     expect(runtime.getState()).toBe("HANDSHAKE_PENDING");
     expect(postMessage).toHaveBeenCalledTimes(1);
@@ -121,7 +121,7 @@ describe("EmbeddedHostRuntime", () => {
     const iframe = runtime.getIframe() as HTMLIFrameElement;
     const { postMessage } = getIframeWindow(iframe);
     iframe.dispatchEvent(new Event("load"));
-    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com");
+    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com", iframe.contentWindow);
 
     const button = document.querySelector("button") as HTMLButtonElement;
     button.click();
@@ -153,7 +153,7 @@ describe("EmbeddedHostRuntime", () => {
     const iframe = runtime.getIframe() as HTMLIFrameElement;
     const { postMessage } = getIframeWindow(iframe);
     iframe.dispatchEvent(new Event("load"));
-    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com");
+    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com", iframe.contentWindow);
 
     const button = document.querySelector("button") as HTMLButtonElement;
     button.click();
@@ -185,7 +185,7 @@ describe("EmbeddedHostRuntime", () => {
     const iframe = runtime.getIframe() as HTMLIFrameElement;
     const { postMessage } = getIframeWindow(iframe);
     iframe.dispatchEvent(new Event("load"));
-    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com");
+    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com", iframe.contentWindow);
 
     await runtime.signalTaskComplete({
       taskId: "task-123",
@@ -231,7 +231,7 @@ describe("EmbeddedHostRuntime", () => {
     const iframe = runtime.getIframe() as HTMLIFrameElement;
     const { postMessage } = getIframeWindow(iframe);
     iframe.dispatchEvent(new Event("load"));
-    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com");
+    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com", iframe.contentWindow);
 
     await Promise.all([
       runtime.signalTaskComplete({ taskId: "task-123" }),
@@ -299,7 +299,7 @@ describe("EmbeddedHostRuntime", () => {
     const iframe = runtime.getIframe() as HTMLIFrameElement;
     getIframeWindow(iframe);
     iframe.dispatchEvent(new Event("load"));
-    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com");
+    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com", iframe.contentWindow);
 
     const destroyPromise = runtime.destroy("teardown");
     expect(() => runtime.mount()).toThrow("Cannot mount while teardown is in progress");
@@ -331,7 +331,7 @@ describe("EmbeddedHostRuntime", () => {
     const iframe = runtime.getIframe() as HTMLIFrameElement;
     const { postMessage } = getIframeWindow(iframe);
     iframe.dispatchEvent(new Event("load"));
-    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com");
+    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com", iframe.contentWindow);
 
     let shouldFailBatchSend = true;
     postMessage.mockImplementation((message) => {
@@ -371,7 +371,7 @@ describe("EmbeddedHostRuntime", () => {
     const iframe = runtime.getIframe() as HTMLIFrameElement;
     const { postMessage } = getIframeWindow(iframe);
     iframe.dispatchEvent(new Event("load"));
-    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com");
+    runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com", iframe.contentWindow);
 
     const button = document.querySelector("button") as HTMLButtonElement;
     button.click();
@@ -433,7 +433,7 @@ describe("EmbeddedHostRuntime", () => {
         context: undefined,
       });
 
-      runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com");
+      runtime.receiveMessage(buildReadyMessage(), "https://overlay.example.com", iframe.contentWindow);
 
       expect(transitions).toHaveLength(3);
       expect(transitions[2]).toEqual({
@@ -569,7 +569,7 @@ describe("EmbeddedHostRuntime", () => {
       expect(runtime.getState()).toBe("HANDSHAKE_PENDING");
     });
 
-    it("receiveMessage accepts messages with null source", () => {
+    it("receiveMessage rejects messages with null source", () => {
       const client = createTestClient();
       const runtime = createEmbeddedHostRuntime({
         client,
@@ -587,10 +587,10 @@ describe("EmbeddedHostRuntime", () => {
         null,
       );
 
-      expect(runtime.getState()).toBe("READY");
+      expect(runtime.getState()).toBe("HANDSHAKE_PENDING");
     });
 
-    it("receiveMessage accepts messages with undefined source", () => {
+    it("receiveMessage rejects messages with undefined source", () => {
       const client = createTestClient();
       const runtime = createEmbeddedHostRuntime({
         client,
@@ -608,7 +608,7 @@ describe("EmbeddedHostRuntime", () => {
         undefined,
       );
 
-      expect(runtime.getState()).toBe("READY");
+      expect(runtime.getState()).toBe("HANDSHAKE_PENDING");
     });
 
     it("receiveMessage accepts messages from correct iframe source", () => {
