@@ -56,7 +56,10 @@ export interface EmbeddedHostRuntimeController {
   destroy: (reason?: string) => Promise<void>;
 }
 
-function resolveTargetOrigin(iframeSrc: string, explicitTargetOrigin?: string): string {
+function resolveTargetOrigin(
+  iframeSrc: string,
+  explicitTargetOrigin?: string,
+): string {
   const candidate = explicitTargetOrigin ?? iframeSrc;
   const parsed = new URL(candidate);
   const isLocalHttp =
@@ -89,15 +92,25 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
   private handshakeStartedAt: number | undefined;
 
   public constructor(private readonly options: EmbeddedHostRuntimeOptions) {
-    this.targetOrigin = resolveTargetOrigin(options.iframeSrc, options.targetOrigin);
-    this.handshakeTimeoutMs = options.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS;
+    this.targetOrigin = resolveTargetOrigin(
+      options.iframeSrc,
+      options.targetOrigin,
+    );
+    this.handshakeTimeoutMs =
+      options.handshakeTimeoutMs ?? DEFAULT_HANDSHAKE_TIMEOUT_MS;
   }
 
   public mount(): void {
     if (this.teardownPromise && this.state !== "TERMINATED") {
-      throw new Error("Cannot mount while teardown is in progress. Await destroy() first.");
+      throw new Error(
+        "Cannot mount while teardown is in progress. Await destroy() first.",
+      );
     }
-    if (this.iframe || typeof window === "undefined" || typeof document === "undefined") {
+    if (
+      this.iframe ||
+      typeof window === "undefined" ||
+      typeof document === "undefined"
+    ) {
       return;
     }
 
@@ -108,8 +121,13 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
     const iframe = document.createElement("iframe");
     iframe.src = this.options.iframeSrc;
     iframe.title = "Insightfull overlay";
-    if (this.options.mediaPermissions) { iframe.allow = "microphone; camera; autoplay"; }
-    iframe.setAttribute("sandbox", "allow-scripts allow-forms allow-popups");
+    if (this.options.mediaPermissions) {
+      iframe.allow = "microphone; camera; autoplay";
+    }
+    iframe.setAttribute(
+      "sandbox",
+      "allow-scripts allow-same-origin allow-forms allow-popups",
+    );
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
     iframe.style.position = "fixed";
     iframe.style.width = overlay?.width ?? "420px";
@@ -157,7 +175,9 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
     return {
       state: this.state,
       handshakeElapsedMs:
-        this.handshakeStartedAt != null ? Date.now() - this.handshakeStartedAt : null,
+        this.handshakeStartedAt != null
+          ? Date.now() - this.handshakeStartedAt
+          : null,
       lastFlushAt: this.browserSession?.getSnapshot()?.lastFlushAt ?? null,
       bufferedEvents: this.browserSession?.getSnapshot()?.bufferedEvents ?? 0,
     };
@@ -175,7 +195,9 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
     await this.teardownPromise;
   }
 
-  public async signalTaskComplete(options: SignalTaskCompleteOptions): Promise<void> {
+  public async signalTaskComplete(
+    options: SignalTaskCompleteOptions,
+  ): Promise<void> {
     this.assertValidTaskId(options.taskId);
     await this.finalizeWithTaskSignal({
       type: WEB_RESEARCH_TASK_COMPLETE_MESSAGE_TYPE,
@@ -189,7 +211,9 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
     });
   }
 
-  public async signalTaskAbandon(options: SignalTaskAbandonOptions): Promise<void> {
+  public async signalTaskAbandon(
+    options: SignalTaskAbandonOptions,
+  ): Promise<void> {
     this.assertValidTaskId(options.taskId);
     if (!isNonEmptyString(options.reason)) {
       throw new Error("signalTaskAbandon requires a non-empty reason");
@@ -208,7 +232,9 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
     });
   }
 
-  public async trackCustomEvent(options: TrackCustomEventOptions): Promise<void> {
+  public async trackCustomEvent(
+    options: TrackCustomEventOptions,
+  ): Promise<void> {
     if (!isNonEmptyString(options.name)) {
       throw new Error("trackCustomEvent requires a non-empty name");
     }
@@ -246,7 +272,11 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
     }, this.handshakeTimeoutMs);
   }
 
-  public receiveMessage(message: unknown, origin: string, source?: MessageEventSource | null): void {
+  public receiveMessage(
+    message: unknown,
+    origin: string,
+    source?: MessageEventSource | null,
+  ): void {
     const iframeWindow = this.iframe?.contentWindow;
     if (!iframeWindow || origin !== this.targetOrigin) {
       return;
@@ -261,7 +291,10 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
       return;
     }
 
-    if (handshakeResult.value.session.sessionId !== this.options.client.getSession().sessionId) {
+    if (
+      handshakeResult.value.session.sessionId !==
+      this.options.client.getSession().sessionId
+    ) {
       return;
     }
 
@@ -288,7 +321,10 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
     this.handshakeTimer = undefined;
   }
 
-  private setState(nextState: SdkLifecycleState, context?: import("./types").SdkStateChangeContext): void {
+  private setState(
+    nextState: SdkLifecycleState,
+    context?: import("./types").SdkStateChangeContext,
+  ): void {
     const previousState = this.state;
     this.state = nextState;
     if (nextState === "DEGRADED") {
@@ -306,7 +342,9 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
   }
 
   private async finalizeWithTaskSignal(
-    message: WebResearchTaskCompleteSignalMessage | WebResearchTaskAbandonSignalMessage,
+    message:
+      | WebResearchTaskCompleteSignalMessage
+      | WebResearchTaskAbandonSignalMessage,
   ): Promise<void> {
     if (this.completionPromise) {
       await this.completionPromise;
@@ -336,7 +374,9 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
   }
 
   private postTaskSignal(
-    message: WebResearchTaskCompleteSignalMessage | WebResearchTaskAbandonSignalMessage,
+    message:
+      | WebResearchTaskCompleteSignalMessage
+      | WebResearchTaskAbandonSignalMessage,
   ): void {
     const iframeWindow = this.iframe?.contentWindow;
     if (!iframeWindow) {
