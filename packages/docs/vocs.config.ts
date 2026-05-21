@@ -68,6 +68,9 @@ export default defineConfig({
   },
   vite: {
     configFile: false,
+    server: {
+      port: 6001,
+    },
     resolve: {
       alias: {
         fsevents: path.join(__dirname, "stubs", "fsevents.js"),

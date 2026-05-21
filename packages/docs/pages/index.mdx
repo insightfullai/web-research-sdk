@@ -1,39 +1,31 @@
+import { VibecoderButton } from "../components/VibecoderButton";
+
 # Insightfull Web Research SDK
 
-Open-source SDK for integrating live website research sessions into your application.
+Add live website research sessions to your app in minutes. Capture user behavior, manage overlay interviews, and stream session data — all with privacy-safe defaults.
 
 ---
 
-## What it does
+<div style={{ display: "flex", gap: "0.75rem", flexWrap: "wrap", marginTop: "0.5rem" }}>
 
-The **Web Research SDK** provides host-side primitives for running research sessions on real websites:
+<a href="/docs/getting-started" style={{ display: "inline-flex", alignItems: "center", gap: "0.5rem", padding: "0.625rem 1.25rem", borderRadius: "0.5rem", background: "var(--vocs-color_accentColor, #6366f1)", color: "#fff", fontWeight: 600, textDecoration: "none", fontSize: "0.95rem" }}>
+  Get started
+</a>
 
-- **Automatic behavioral capture** — clicks, input changes, form submissions, and SPA navigation transitions, all with privacy-safe defaults (no raw element text, no input values by default).
-- **Secure overlay bridge** — connect a hosted overlay iframe through a versioned `postMessage` protocol with origin validation, capability negotiation, and graceful degradation.
-- **Pluggable transport** — send captured events through your own backend via callback or `postMessage` transports with configurable batching and flush policies.
-- **React integration** — optional provider, hooks, and iframe host component built on top of the framework-agnostic core.
+<VibecoderButton />
+
+</div>
 
 ---
 
-## Quick example
+## How it works
 
-```ts
-import {
-  createWebResearchClient,
-  createCallbackTransport,
-} from "@insightfull/web-research-sdk";
+The SDK runs entirely on the **host side** of your application. It observes user sessions on real websites, captures behavioral signals, and manages a secure overlay bridge for interviews and guided tasks.
 
-const client = createWebResearchClient({
-  apiKey: "public-sdk-key",
-  transport: createCallbackTransport({
-    onBatch(batch) {
-      console.log(batch.events);
-    },
-  }),
-});
-
-client.startBrowserSession();
-```
+- **Behavioral capture** — clicks, input changes, form submissions, and SPA navigation with privacy-safe defaults (no raw text, no input values).
+- **Overlay bridge** — connect a hosted overlay iframe through a versioned protocol with origin validation, capability negotiation, and graceful degradation.
+- **Pluggable transport** — route captured events through your own backend via callbacks or `postMessage` with configurable batching.
+- **React integration** — optional provider, hooks, and drop-in iframe component on top of the framework-agnostic core.
 
 ---
 
