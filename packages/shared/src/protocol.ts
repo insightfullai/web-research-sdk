@@ -186,6 +186,13 @@ export interface OverlayTypographyConfig {
   headingFontFamily?: string | null;
 }
 
+/**
+ * Tailwind CSS theme overrides for the overlay UI.
+ *
+ * @security Consumers MUST sanitize these values before injecting into CSS.
+ * Arbitrary CSS strings could enable style injection or data exfiltration
+ * via `url()`, `expression()`, or other CSS functions.
+ */
 export interface OverlayTailwindThemeOverrides {
   primary?: string | null;
   primaryForeground?: string | null;

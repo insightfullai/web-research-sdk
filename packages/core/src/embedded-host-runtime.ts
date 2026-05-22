@@ -33,6 +33,7 @@ export interface EmbeddedHostRuntimeOptions {
   captureOptions?: Omit<StartBrowserSessionOptions, "transport">;
   overlay?: import("./types").EmbeddedOverlayOptions;
   mediaPermissions?: boolean;
+  silent?: boolean;
   onStateChange?: (
     state: SdkLifecycleState,
     previousState: SdkLifecycleState,
@@ -50,6 +51,7 @@ export interface EmbeddedHostRuntimeController {
     bufferedEvents: number;
   };
   getIframe: () => HTMLIFrameElement | null;
+  receiveMessage: (message: unknown, origin: string, source?: MessageEventSource | null) => void;
   signalTaskComplete: (options: SignalTaskCompleteOptions) => Promise<void>;
   signalTaskAbandon: (options: SignalTaskAbandonOptions) => Promise<void>;
   trackCustomEvent: (options: TrackCustomEventOptions) => Promise<void>;
@@ -126,7 +128,7 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
     }
     iframe.setAttribute(
       "sandbox",
-      "allow-scripts allow-same-origin allow-forms allow-popups",
+      "allow-scripts allow-forms allow-popups",
     );
     iframe.referrerPolicy = "strict-origin-when-cross-origin";
     iframe.style.position = "fixed";
@@ -327,7 +329,7 @@ class EmbeddedHostRuntime implements EmbeddedHostRuntimeController {
   ): void {
     const previousState = this.state;
     this.state = nextState;
-    if (nextState === "DEGRADED") {
+    if (nextState === "DEGRADED" && !this.options.silent) {
       console.warn(
         `[EmbeddedHostRuntime] state transitioned to DEGRADED${context?.reason ? `: ${context.reason}` : ""}`,
       );

@@ -1092,7 +1092,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@insightfull/web-research-sdk-shared@workspace:packages/shared":
+"@insightfull/web-research-sdk-shared@workspace:*, @insightfull/web-research-sdk-shared@workspace:packages/shared":
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk-shared@workspace:packages/shared"
   languageName: unknown
@@ -1117,6 +1117,7 @@ __metadata:
   resolution: "@insightfull/web-research-sdk@workspace:packages/core"
   dependencies:
     "@insightfull/web-research-sdk-contracts": "workspace:*"
+    "@insightfull/web-research-sdk-shared": "workspace:*"
   languageName: unknown
   linkType: soft
 
@@ -5501,10 +5502,11 @@ __metadata:
   dependencies:
     "@types/react": "npm:^19.2.2"
     "@types/react-dom": "npm:^19.2.2"
-    react: "npm:^19.2.0"
-    react-dom: "npm:^19.2.0"
     typescript: "npm:^5.9.3"
     vocs: "npm:^1.4.1"
+  peerDependencies:
+    react: ^19.0.0
+    react-dom: ^19.0.0
   languageName: unknown
   linkType: soft
 

@@ -176,6 +176,42 @@ function validateStringRecord(
   return true;
 }
 
+function validateSafeStringRecord(
+  value: unknown,
+  path: string,
+  issues: BridgeValidationIssue[],
+): value is Record<string, unknown> {
+  if (!validateStringRecord(value, path, issues)) {
+    return false;
+  }
+
+  const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+  let valid = true;
+  for (const key of Object.keys(value)) {
+    if (UNSAFE_KEYS.has(key)) {
+      continue;
+    }
+    const entry = value[key];
+    if (
+      entry !== undefined &&
+      entry !== null &&
+      typeof entry !== "string" &&
+      typeof entry !== "number" &&
+      typeof entry !== "boolean"
+    ) {
+      pushIssue(
+        issues,
+        "BRG_SCHEMA_INVALID",
+        `${path}.${key}`,
+        "Expected primitive value (string, number, boolean, or null)",
+      );
+      valid = false;
+    }
+  }
+
+  return valid;
+}
+
 function validateEmptyObject(
   value: unknown,
   path: string,
@@ -523,7 +559,7 @@ function validateOverlayUiCommandPayload(
       issues,
     ) && valid;
   if (payload.args !== undefined) {
-    valid = validateStringRecord(payload.args, "payload.args", issues) && valid;
+    valid = validateSafeStringRecord(payload.args, "payload.args", issues) && valid;
   }
   return valid;
 }
@@ -580,7 +616,7 @@ function validateBridgeDiagnosticPayload(
   valid = validateString(payload.code, "payload.code", issues) && valid;
   valid = validateString(payload.message, "payload.message", issues) && valid;
   if (payload.details !== undefined) {
-    valid = validateStringRecord(payload.details, "payload.details", issues) && valid;
+    valid = validateSafeStringRecord(payload.details, "payload.details", issues) && valid;
   }
   return valid;
 }

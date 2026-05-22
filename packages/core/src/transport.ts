@@ -19,6 +19,7 @@ import type {
 
 const DEFAULT_BATCH_SIZE = 10;
 const DEFAULT_FLUSH_INTERVAL_MS = 1_000;
+const DEFAULT_IDLE_TIMEOUT_MS = 1_800_000;
 const MAX_BATCH_SIZE = 200;
 
 interface QueueDependencies {
@@ -54,10 +55,12 @@ export class WebResearchEventQueue {
   private readonly transport: WebResearchTransport;
   private readonly batchSize: number;
   private readonly flushIntervalMs: number;
+  private readonly idleTimeoutMs: number;
   private readonly dependencies: QueueDependencies;
 
   private events: TrackedSdkEvent[] = [];
   private flushTimerId: ReturnType<typeof setTimeout> | undefined;
+  private idleTimerId: ReturnType<typeof setTimeout> | undefined;
   private flushChain: Promise<void> = Promise.resolve();
   private completingPromise: Promise<void> | undefined;
   private lastFlushAt: string | undefined;
@@ -66,11 +69,13 @@ export class WebResearchEventQueue {
   public constructor(options: {
     session: SessionMetadata;
     transport: WebResearchTransport;
+    idleTimeoutMs?: number;
     batching?: WebResearchBatchingOptions;
     dependencies?: Partial<QueueDependencies>;
   }) {
     this.session = options.session;
     this.transport = options.transport;
+    this.idleTimeoutMs = options.idleTimeoutMs ?? DEFAULT_IDLE_TIMEOUT_MS;
     const batching = sanitizeBatchingOptions(options.batching);
     this.batchSize = batching.batchSize;
     this.flushIntervalMs = batching.flushIntervalMs;
@@ -97,10 +102,12 @@ export class WebResearchEventQueue {
 
     if (this.events.length >= this.batchSize) {
       void this.flush("batch_size").catch(() => undefined);
+      this.resetIdleTimer();
       return;
     }
 
     this.scheduleFlush();
+    this.resetIdleTimer();
   }
 
   public async flush(reason = "manual"): Promise<void> {
@@ -143,6 +150,7 @@ export class WebResearchEventQueue {
     if (!this.completingPromise) {
       this.completingPromise = (async () => {
         this.clearFlushTimer();
+        this.clearIdleTimer();
         let consecutiveFailures = 0;
 
         while (this.events.length > 0) {
@@ -210,6 +218,25 @@ export class WebResearchEventQueue {
 
     this.dependencies.clearTimeout(this.flushTimerId);
     this.flushTimerId = undefined;
+  }
+
+  private resetIdleTimer(): void {
+    this.clearIdleTimer();
+    if (this.idleTimeoutMs > 0 && !this.completed) {
+      this.idleTimerId = this.dependencies.setTimeout(() => {
+        this.idleTimerId = undefined;
+        void this.complete("idle_timeout").catch(() => undefined);
+      }, this.idleTimeoutMs);
+    }
+  }
+
+  private clearIdleTimer(): void {
+    if (!this.idleTimerId) {
+      return;
+    }
+
+    this.dependencies.clearTimeout(this.idleTimerId);
+    this.idleTimerId = undefined;
   }
 }
 

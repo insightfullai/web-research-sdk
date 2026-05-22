@@ -48,6 +48,8 @@ const MAX_EVENT_PAYLOAD_DEPTH = 5;
 const MAX_EVENT_PAYLOAD_SIZE_BYTES = 10240;
 const MAX_EVENTS_PER_BATCH = 200;
 
+const UNSAFE_KEYS = new Set(["__proto__", "constructor", "prototype"]);
+
 export function isRecord(value: unknown): value is UnknownRecord {
   return typeof value === "object" && value !== null && !Array.isArray(value);
 }
@@ -294,6 +296,9 @@ function validatePayloadDepth(
   if (isRecord(value)) {
     let valid = true;
     for (const key of Object.keys(value)) {
+      if (UNSAFE_KEYS.has(key)) {
+        continue;
+      }
       valid = validatePayloadDepth(value[key], maxDepth, currentDepth + 1, `${path}.${key}`, issues) && valid;
     }
     return valid;
@@ -591,7 +596,7 @@ export function validateWebResearchDiagnosticMessage(
       session: envelope.session,
       sentAt: envelope.sentAt,
       code: input.code as WebResearchDiagnosticMessage["code"],
-      detail: input.detail as string | undefined,
+      ...(input.detail !== undefined ? { detail: input.detail as string } : {}),
     },
   };
 }

@@ -401,7 +401,7 @@ describe("EmbeddedHostRuntime", () => {
       const transitions: Array<{
         state: string;
         previousState: string;
-        context?: { reason?: string; diagnostic?: string };
+        context: { reason?: string; diagnostic?: string } | undefined;
       }> = [];
       const client = createTestClient();
       const runtime = createEmbeddedHostRuntime({
@@ -448,7 +448,7 @@ describe("EmbeddedHostRuntime", () => {
       const transitions: Array<{
         state: string;
         previousState: string;
-        context?: { reason?: string; diagnostic?: string };
+        context: { reason?: string; diagnostic?: string } | undefined;
       }> = [];
       const client = createTestClient();
       const runtime = createEmbeddedHostRuntime({

@@ -28,7 +28,7 @@ function createTestRuntime() {
       parentOrigin: "https://host.example.com",
       handshake: {
         overlayToken: "overlay-token",
-        overlayTokenExpiresAt: "2026-03-31T00:00:00.000Z",
+        overlayTokenExpiresAt: "2099-12-31T23:59:59.000Z",
         authorizedCapabilities: ["task_prompts", "agent_audio"],
         context: {
           organizationId: 1,
@@ -116,7 +116,7 @@ describe("protocol helpers", () => {
         selectedVersion: BRIDGE_VERSION,
         parentOrigin: "https://host.example.com",
         overlayToken: "overlay-token",
-        overlayTokenExpiresAt: "2026-03-31T00:00:00.000Z",
+        overlayTokenExpiresAt: "2099-12-31T23:59:59.000Z",
         selectedCapabilities: ["task_prompts"],
         context: {
           organizationId: 1,

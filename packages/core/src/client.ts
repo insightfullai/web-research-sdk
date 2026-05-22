@@ -21,6 +21,42 @@ import type {
 
 const DEFAULT_ENDPOINT = "https://api.insightfull.ai/web-research";
 
+const UUID_V4_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f]{12}$/i;
+
+function validateEndpoint(endpoint: string, environment: string): string {
+  let parsed: URL;
+  try {
+    parsed = new URL(endpoint);
+  } catch {
+    throw new Error(`Invalid endpoint URL: ${endpoint}`);
+  }
+
+  const isLocalhost =
+    parsed.hostname === "localhost" || parsed.hostname === "127.0.0.1";
+
+  if (parsed.protocol !== "https:" && !(parsed.protocol === "http:" && isLocalhost)) {
+    throw new Error(
+      `Endpoint must use HTTPS (or http://localhost for development): ${endpoint}`,
+    );
+  }
+
+  if (environment === "prod") {
+    const isRfc1918 =
+      /^(10\.|172\.(1[6-9]|2\d|3[01])\.|192\.168\.)/.test(parsed.hostname);
+    const isLinkLocal = /^169\.254\./.test(parsed.hostname);
+    const isLoopbackNonLocal =
+      /^127\./.test(parsed.hostname) && parsed.hostname !== "127.0.0.1";
+
+    if (isRfc1918 || isLinkLocal || isLoopbackNonLocal) {
+      throw new Error(
+        `Endpoint resolves to a private/local address which is not allowed in production: ${endpoint}`,
+      );
+    }
+  }
+
+  return endpoint;
+}
+
 function isRuntimeEnvironment(value: unknown): value is RuntimeEnvironment {
   return typeof value === "string" && RUNTIME_ENVIRONMENTS.includes(value as RuntimeEnvironment);
 }
@@ -37,7 +73,14 @@ class DefaultWebResearchClient implements WebResearchClient {
   private readonly transportCompletionPromises = new WeakMap<WebResearchTransport, Promise<void>>();
 
   public constructor(private readonly options: WebResearchClientOptions) {
-    this.endpoint = options.endpoint ?? DEFAULT_ENDPOINT;
+    if (options.sessionId !== undefined) {
+      if (!UUID_V4_REGEX.test(options.sessionId)) {
+        throw new Error("sessionId must be a valid UUID v4 format");
+      }
+    }
+    this.endpoint = options.endpoint
+      ? validateEndpoint(options.endpoint, options.environment)
+      : DEFAULT_ENDPOINT;
     this.configuredTransport = options.transport;
     this.batchingOptions = options.batching;
     this.session = {
@@ -57,6 +100,9 @@ class DefaultWebResearchClient implements WebResearchClient {
   }
 
   public async track(event: SdkEvent): Promise<void> {
+    if (!event.name || typeof event.name !== "string") {
+      throw new Error("event.name must be a non-empty string");
+    }
     this.trackedEvents.push(event);
     void this.endpoint;
 
@@ -143,7 +189,7 @@ class DefaultWebResearchClient implements WebResearchClient {
     return this.bridge.getState();
   }
 
-  public destroy(reason?: string): void {
+  public async destroy(reason?: string): Promise<void> {
     const pendingTeardown: Promise<void>[] = [];
     if (this.browserSession) {
       pendingTeardown.push(this.browserSession.destroy(reason));
@@ -155,7 +201,7 @@ class DefaultWebResearchClient implements WebResearchClient {
     this.bridge.terminate(reason);
 
     if (pendingTeardown.length > 0) {
-      void Promise.allSettled(pendingTeardown);
+      await Promise.allSettled(pendingTeardown);
     }
   }
 

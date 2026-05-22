@@ -492,8 +492,16 @@ export class OverlayBridgeRuntime implements OverlayBridgeController {
       throw new Error("No compatible bridge version available");
     }
 
+    const tokenExpiresAt = this.handshakeOptions.overlayTokenExpiresAt;
+    if (tokenExpiresAt !== undefined) {
+      const expiresMs = new Date(tokenExpiresAt).getTime();
+      if (isNaN(expiresMs) || expiresMs < this.dependencies.now()) {
+        throw new Error("overlayTokenExpiresAt is in the past. Token has expired.");
+      }
+    }
+
     const authorizedCapabilities =
-      this.handshakeOptions.authorizedCapabilities ?? BRIDGE_CAPABILITIES;
+      this.handshakeOptions.authorizedCapabilities ?? [];
     const selectedCapabilities = intersectsCapabilities(
       intersectsCapabilities(this.supportedCapabilities, helloMessage.payload.capabilities),
       authorizedCapabilities,
@@ -553,7 +561,10 @@ export class OverlayBridgeRuntime implements OverlayBridgeController {
       const keys = [...this.messageDecisions.keys()];
       const evictCount = Math.ceil(keys.length * 0.2);
       for (let i = 0; i < evictCount; i++) {
-        this.messageDecisions.delete(keys[i]);
+        const key = keys[i];
+        if (key !== undefined) {
+          this.messageDecisions.delete(key);
+        }
       }
     }
     return {
@@ -650,7 +661,10 @@ export class OverlayBridgeRuntime implements OverlayBridgeController {
       const keys = [...this.lastSequenceBySender.keys()];
       const evictCount = Math.ceil(keys.length * 0.2);
       for (let i = 0; i < evictCount; i++) {
-        this.lastSequenceBySender.delete(keys[i]);
+        const key = keys[i];
+        if (key !== undefined) {
+          this.lastSequenceBySender.delete(key);
+        }
       }
     }
   }

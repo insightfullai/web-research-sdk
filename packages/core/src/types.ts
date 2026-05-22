@@ -124,8 +124,6 @@ export interface WebResearchBridgeOptions {
 
 export interface WebResearchClientOptions {
   environment: RuntimeEnvironment;
-  /** @deprecated This field is unused and retained for compatibility only. */
-  apiKey?: string;
   endpoint?: string;
   sessionId?: string;
   bridge?: WebResearchBridgeOptions;
@@ -291,7 +289,7 @@ export interface WebResearchClient {
   startBrowserSession: (options?: StartBrowserSessionOptions) => BrowserSessionController;
   getLifecycleState: () => SdkLifecycleState;
   bridge: OverlayBridgeController;
-  destroy: (reason?: string) => void;
+  destroy: (reason?: string) => Promise<void>;
 }
 
 export interface CallbackTransportOptions {

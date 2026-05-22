@@ -38,6 +38,7 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
-    "@insightfull/web-research-sdk-contracts": "workspace:*"
+    "@insightfull/web-research-sdk-contracts": "workspace:*",
+    "@insightfull/web-research-sdk-shared": "workspace:*"
   }
 }

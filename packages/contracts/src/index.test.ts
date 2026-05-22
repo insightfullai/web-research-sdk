@@ -264,7 +264,7 @@ describe("contracts schema parsing", () => {
         source: "browser",
         payload: { path: "/home" },
       }));
-      fixture.events = events;
+      fixture.events = events as unknown as typeof fixture.events;
 
       const result = parseWebResearchBatchMessage(fixture);
       expect(result.success).toBe(false);
