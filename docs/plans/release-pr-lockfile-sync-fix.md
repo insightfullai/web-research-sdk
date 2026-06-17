@@ -1,10 +1,10 @@
 # Release PR Lockfile Sync Fix Plan
 
-| Metadata | Details |
-| :-- | :-- |
-| **Owner** | Engineering Manager Orchestration |
-| **Status** | In Progress |
-| **Created** | 2026-03-30 |
+| Metadata       | Details                                                                          |
+| :------------- | :------------------------------------------------------------------------------- |
+| **Owner**      | Engineering Manager Orchestration                                                |
+| **Status**     | In Progress                                                                      |
+| **Created**    | 2026-03-30                                                                       |
 | **References** | CI run `23752753954`, Release run `23752753928`, `.github/workflows/release.yml` |
 
 ---

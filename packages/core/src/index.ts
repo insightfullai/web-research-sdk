@@ -33,10 +33,22 @@ export type {
   TriggerFilter,
 } from "./types/index.js";
 
+// Legacy bridge stubs for v0.1 compatibility (needed by @insightfull/web-research-sdk-react)
+export {
+  createBridgeMessageEnvelope,
+  createCallbackTransport,
+  createWebResearchClient,
+  type AnyBridgeMessage,
+  type OverlayBridgeSnapshot,
+  type WebResearchClient,
+  type WebResearchClientOptions,
+  type WebResearchEventBatch,
+  type WebResearchTransportCompletePayload,
+} from "./legacy-bridge.js";
+
 // Register globally for script-tag usage
 import { InsightfullSDK } from "./insightfull-sdk.js";
 
 if (typeof window !== "undefined") {
-  (window as unknown as Record<string, unknown>).InsightfullSDK =
-    InsightfullSDK;
+  (window as unknown as Record<string, unknown>).InsightfullSDK = InsightfullSDK;
 }

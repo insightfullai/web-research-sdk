@@ -1,10 +1,10 @@
 # Release PR Permission Remediation Plan
 
-| Metadata | Details |
-| :-- | :-- |
-| **Owner** | Engineering Manager Orchestration |
-| **Status** | In Progress |
-| **Created** | 2026-03-30 |
+| Metadata       | Details                                                                |
+| :------------- | :--------------------------------------------------------------------- |
+| **Owner**      | Engineering Manager Orchestration                                      |
+| **Status**     | In Progress                                                            |
+| **Created**    | 2026-03-30                                                             |
 | **References** | Release run `23749941989`, repository Actions workflow permissions API |
 
 ---

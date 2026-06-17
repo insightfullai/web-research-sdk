@@ -247,10 +247,10 @@ describe("OverlayBridgeFrame", () => {
     expect(outboundTypes).toEqual(["bridge:ack", "overlay:init"]);
     expect(postMessage.mock.calls[0]?.[1]).toBe("https://overlay.example.com");
 
-    const initMessage = postMessage.mock.calls[1]?.[0] as Extract<
-      AnyBridgeMessage,
-      { type: "overlay:init" }
-    >;
+    const initMessage = postMessage.mock.calls[1]?.[0] as AnyBridgeMessage & {
+      type: "overlay:init";
+      payload: { selectedCapabilities: string[] };
+    };
     expect(initMessage.payload.selectedCapabilities).toEqual(["task_prompts"]);
 
     const readyMessage = createBridgeMessageEnvelope({
@@ -288,7 +288,9 @@ describe("OverlayBridgeFrame", () => {
       selectedVersion: "1.0",
       negotiatedCapabilities: ["task_prompts"],
     });
-    expect(postMessage.mock.calls[2]?.[0]).toMatchObject({ type: "bridge:ack" });
+    expect(postMessage.mock.calls[2]?.[0]).toMatchObject({
+      type: "bridge:ack",
+    });
 
     view.unmount();
   });

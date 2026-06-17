@@ -49,7 +49,7 @@ function App() {
     return () => {
       window.removeEventListener("popstate", handleRoute);
       window.removeEventListener("hashchange", handleRoute);
-      void session.destroy("app_unmount");
+      session.destroy("app_unmount");
       client.destroy("app_unmount");
     };
   }, []);
@@ -121,7 +121,7 @@ function App() {
             data-testid="flush-button"
             type="button"
             onClick={() => {
-              void client.flush("manual_flush");
+              client.flush("manual_flush");
             }}
           >
             Flush captured events
@@ -130,7 +130,7 @@ function App() {
             data-testid="complete-button"
             type="button"
             onClick={() => {
-              void client.complete("manual_complete");
+              client.complete("manual_complete");
             }}
           >
             Complete session

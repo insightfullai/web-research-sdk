@@ -512,7 +512,7 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk-react@workspace:packages/react"
   dependencies:
-    "@insightfull/web-research-sdk": "npm:^0.1.1"
+    "@insightfull/web-research-sdk": "workspace:*"
     "@types/react": "npm:^19.2.2"
     "@types/react-dom": "npm:^19.2.2"
     jsdom: "npm:^26.1.0"
@@ -542,7 +542,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@insightfull/web-research-sdk@npm:^0.1.1, @insightfull/web-research-sdk@workspace:packages/core":
+"@insightfull/web-research-sdk@workspace:*, @insightfull/web-research-sdk@workspace:packages/core":
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk@workspace:packages/core"
   languageName: unknown
