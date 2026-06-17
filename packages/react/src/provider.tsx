@@ -11,10 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { InsightfullSDK } from "@insightfull/web-research-sdk";
-import type {
-  InsightfullContextValue,
-  InsightfullProviderProps,
-} from "./types.js";
+import type { InsightfullContextValue, InsightfullProviderProps } from "./types.js";
 
 const InsightfullContext = createContext<InsightfullContextValue>({
   sdk: null,
@@ -59,11 +56,7 @@ export function InsightfullProvider({
     initSdk();
   }, [initSdk]);
 
-  return createElement(
-    InsightfullContext.Provider,
-    { value: { sdk, isReady } },
-    children,
-  );
+  return createElement(InsightfullContext.Provider, { value: { sdk, isReady } }, children);
 }
 
 /**

@@ -1,15 +1,12 @@
-import type {
-  InsightfullSDK,
-  InsightfullInitOptions,
-} from "@insightfull/web-research-sdk";
+import type { InsightfullSDK, InsightfullInitOptions } from "@insightfull/web-research-sdk";
 
 export interface InsightfullProviderProps {
-  /** SDK initialization options. */
-  children: React.ReactNode;
   /** Client ID from your Insightfull dashboard environment. */
   clientId: string;
   /** SDK initialization options forwarded to InsightfullSDK.init(). */
   options?: Omit<InsightfullInitOptions, "clientId">;
+  /** React children. */
+  children?: React.ReactNode;
 }
 
 export interface InsightfullContextValue {
