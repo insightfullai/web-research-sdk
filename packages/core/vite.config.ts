@@ -9,5 +9,8 @@ export default defineConfig({
   },
   test: {
     include: ["src/**/*.test.ts"],
+    globals: true,
+    environment: "jsdom",
+    environmentMatchGlobs: [["src/**/bundle-size-gate.test.ts", "node"]],
   },
 });
