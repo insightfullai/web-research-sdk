@@ -1,78 +1,67 @@
-# Two-project local integration runbook
+# Local Integration Runbook
 
-Use this runbook when validating the SDK repo together with a separate host application repo.
+Use this runbook when validating the SDK repo together with a separate host application.
 
-## Repos
-
-1. `web-research-sdk` (this OSS repo)
-2. your host app repo that embeds the private overlay iframe
-
-## Mode A: linked validation
-
-Use linked mode for fast iteration.
+## Linked validation (fast iteration)
 
 In this repo:
 
 ```bash
-vp install
-vp run -r build
+yarn install
+yarn build
 ```
 
-In the host app repo, link the two public packages from your local workspace using your package manager's workspace/link flow, then restart the host app.
-
-Use linked mode when validating API shape, React integration behavior, and fast bridge fixes before publish parity checks.
-
-## Mode B: packed validation
-
-Use packed mode for publish-parity validation.
-
-In this repo:
+In your host app, link the packages:
 
 ```bash
-vp run -r pack
-node ./scripts/verify-package-exports.mjs
-corepack yarn pack:dry-run
+# Using yarn link
+cd packages/core && yarn link
+cd packages/react && yarn link
+
+# In your host app
+yarn link @insightfull/web-research-sdk
+yarn link @insightfull/web-research-sdk-react
 ```
 
-Then install the generated tarballs from `packages/core` and `packages/react` into the host app repo.
+## Packed validation (publish parity)
+
+```bash
+yarn build
+cd packages/core && yarn pack --dry-run
+cd packages/react && yarn pack --dry-run
+```
+
+Install the generated tarballs into your host app.
 
 ## Smoke test checklist
 
-### Installation/package checks
+### SDK initialization
 
-- host app installs only public packages
-- no dependency on `@insightfull/web-research-sdk-shared`
-- packed tarballs contain only expected publish artifacts and package metadata
+- [ ] `InsightfullSDK.init({ clientId })` returns an SDK instance
+- [ ] `sdk.identify("user_1", { key: "value" })` sets user traits
+- [ ] `sdk.track("event_name")` enqueues an event
+- [ ] `sdk.destroy()` stops all tracking and listeners
 
-### Iframe handshake checks
+### React integration
 
-1. load host page and mount iframe
-2. confirm iframe `load` moves SDK state to `HANDSHAKE_PENDING`
-3. send `overlay:hello` from the iframe origin
-4. confirm SDK responds with `bridge:ack` and `overlay:init`
-5. send `overlay:ready`
-6. confirm SDK responds with `bridge:ack` and reaches `READY`
+- [ ] `InsightfullProvider` renders children during SSR
+- [ ] `useInsightfull()` returns `{ sdk: null, isReady: false }` before init
+- [ ] `useInsightfull().sdk.track(...)` works after mount
+- [ ] Provider cleanup destroys SDK on unmount
 
-### Failure-path checks
+### Trigger evaluation (requires backend)
 
-- **origin validation:** send a valid message from the wrong origin and confirm rejection/termination
-- **unknown message rejection:** send an unknown or schema-invalid message and confirm it is rejected with diagnostics
-- **ack/retry:** drop `overlay:ready` after `overlay:init` and confirm retry attempts before `DEGRADED`
-- **iframe unavailable fallback:** never send `overlay:hello` and confirm hello timeout moves the SDK to `DEGRADED`
+- [ ] Configure a trigger in the Insightfull dashboard
+- [ ] Fire the matching event → study appears
+- [ ] URL pattern triggers fire on matching pageviews
 
 ## Release-readiness commands
 
-Run these in the SDK repo before cutting or approving a release:
-
 ```bash
-vp check
-vp run -r test
-vp run -r build
-vp run -r pack
-node ./scripts/verify-package-exports.mjs
-corepack yarn pack:dry-run
+yarn workspace @insightfull/web-research-sdk build
+yarn workspace @insightfull/web-research-sdk test
+yarn workspace @insightfull/web-research-sdk-react build
+yarn workspace @insightfull/web-research-sdk-react test
 ```
 
-## OSS/private boundary reminder
-
-This repo owns host runtime behavior only. Proprietary overlay logic, interview orchestration, and private backend token issuance stay outside this repository.
+The `@insightfull/web-research-sdk-shared` package is an internal workspace package and is **not** part of the public adoption surface.

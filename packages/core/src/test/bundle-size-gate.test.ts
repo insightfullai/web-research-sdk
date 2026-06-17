@@ -26,13 +26,7 @@ describe("Bundle size gate", () => {
         const fullPath = join(dir, entry.name);
         if (entry.isDirectory()) {
           files.push(...collectTsFiles(fullPath));
-        } else if (
-          entry.name.endsWith(".ts") &&
-          !entry.name.endsWith(".test.ts") &&
-          // Exclude legacy stubs — they are type-only re-exports for v0.1 compat
-          // and are never part of the production bundle.
-          entry.name !== "legacy-bridge.ts"
-        ) {
+        } else if (entry.name.endsWith(".ts") && !entry.name.endsWith(".test.ts")) {
           files.push(fullPath);
         }
       }

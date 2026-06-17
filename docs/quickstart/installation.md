@@ -1,109 +1,73 @@
-# Installation and SDK setup
-
-## Public packages
-
-- `@insightfull/web-research-sdk`
-- `@insightfull/web-research-sdk-react`
-
-`@insightfull/web-research-sdk-shared` is an internal workspace package and is **not** part of the public adoption surface.
+# Installation and Setup
 
 ## Install
 
-Core SDK only:
-
 ```bash
+npm install @insightfull/web-research-sdk
+# or
 yarn add @insightfull/web-research-sdk
 ```
 
-Core SDK + React helpers:
+## Script tag (no build step)
 
-```bash
-yarn add @insightfull/web-research-sdk @insightfull/web-research-sdk-react react react-dom
+```html
+<script src="https://cdn.insightfull.ai/sdk.js"></script>
+<script>
+  const sdk = InsightfullSDK.init({ clientId: "env_..." });
+  sdk.track("pageview");
+</script>
 ```
 
-## Basic SDK setup
+## Get your clientId
 
-The public core entrypoint exports:
+1. Go to your Insightfull dashboard → **Settings → SDK**
+2. Create an environment (e.g., "Production")
+3. Copy the **Client ID** (looks like `env_abc123...`)
 
-- `createWebResearchClient`
-- `createCallbackTransport`
-- `createPostMessageTransport`
-- `BrowserWebResearchSession`
-- `createBridgeMessageEnvelope`
-- `OverlayBridgeRuntime`
-- `SUPPORTED_BRIDGE_VERSIONS`
-- `validateBridgeOrigin`
-- `validateSupportedBridgeVersion`
-- the public bridge/client types exported from the package root
-
-Example:
+## Basic usage
 
 ```ts
-import { createWebResearchClient } from "@insightfull/web-research-sdk";
+import { InsightfullSDK } from "@insightfull/web-research-sdk";
 
-const client = createWebResearchClient({
-  environment: "prod",
-  sessionId: "session-123",
-  bridge: {
-    iframeOrigin: "https://overlay.example.com",
-    parentOrigin: window.location.origin,
-    handshake: {
-      overlayToken: "overlay-runtime-token",
-      overlayTokenExpiresAt: "2026-04-01T00:00:00.000Z",
-      authorizedCapabilities: ["task_prompts", "agent_audio"],
-      context: {
-        organizationId: 1,
-        studyId: 10,
-        sectionId: 20,
-        sessionId: "session-123",
-        participantId: "participant-1",
-        tabId: "tab-1",
-      },
-      uiConfig: {
-        defaultPosition: "bottom-right",
-        showAiPersona: true,
-        theme: "system",
-      },
-      consent: {
-        mode: "required",
-        captureAllowed: true,
-      },
-    },
-  },
+const sdk = InsightfullSDK.init({
+  clientId: "env_abc123",
+  autoTrack: true, // automatically tracks pageviews
 });
 
-client.bridge.mount();
+// Identify a user
+sdk.identify("user_123", { plan: "pro", company: "Acme" });
+
+// Track events — matching triggers will show studies
+sdk.track("checkout_completed", { total: 99.99 });
+sdk.track("signup");
 ```
 
-## Browser Capture Runtime
+## Configuration
 
-The core client can now start a minimal live browser capture session with a pluggable transport:
+| Option      | Type    | Default                    | Description                          |
+| ----------- | ------- | -------------------------- | ------------------------------------ |
+| `clientId`  | string  | required                   | Environment client ID from dashboard |
+| `autoTrack` | boolean | true                       | Automatically track pageviews        |
+| `apiBase`   | string  | https://app.insightfull.ai | API server URL                       |
+
+## Targeting with custom attributes
+
+Custom IDs and attributes are used to match trigger filters in your study configuration:
 
 ```ts
-import { createCallbackTransport, createWebResearchClient } from "@insightfull/web-research-sdk";
+// Custom IDs (e.g., for trigger filters matching "customId.plan")
+sdk.setCustomId("plan", "premium");
 
-const client = createWebResearchClient({ environment: "prod" });
-
-client.startBrowserSession({
-  transport: createCallbackTransport({
-    onBatch(batch) {
-      console.log(batch.events);
-    },
-  }),
-  batching: {
-    batchSize: 20,
-    flushIntervalMs: 1000,
-  },
-});
+// Custom attributes (e.g., for trigger filters matching "company")
+sdk.setAttribute("company", "Acme Inc");
 ```
 
-The runtime captures click, input, change, submit, and navigation events with privacy-safe defaults (for example, no raw element text capture, minimized element descriptors, and navigation URLs redacted to origin + pathname while preserving `hasQuery`/`hasHash` flags), and supports `client.flush()`, `client.complete()`, and `client.destroy()`.
+## Cleanup
 
-Set `environment` to `"dev" | "staging" | "prod"` so every session payload is attributed to the correct runtime tier during ingestion.
+```ts
+sdk.destroy(); // stops tracking, flushes events, removes listeners
+```
 
-## Notes
+## Bundle size
 
-- Use Node 24+ when building, testing, or packing the workspace.
-- `bridge.iframeOrigin` must be an explicit `https` origin.
-- Full `overlay:init` handshake requires `bridge.handshake` config.
-- Do not put overlay/session tokens into iframe URL query params.
+5.6 KB gzipped. Zero runtime dependencies.

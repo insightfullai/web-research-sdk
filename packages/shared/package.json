@@ -1,25 +1,5 @@
 {
   "name": "@insightfull/web-research-sdk-shared",
   "version": "0.1.0",
-  "private": true,
-  "files": [
-    "dist"
-  ],
-  "type": "module",
-  "main": "./dist/index.cjs",
-  "module": "./dist/index.mjs",
-  "types": "./dist/index.d.mts",
-  "exports": {
-    ".": {
-      "types": "./dist/index.d.mts",
-      "import": "./dist/index.mjs",
-      "require": "./dist/index.cjs"
-    }
-  },
-  "scripts": {
-    "build": "vp pack",
-    "pack": "vp pack",
-    "test": "vp test run",
-    "clean": "rm -rf dist"
-  }
+  "private": true
 }
