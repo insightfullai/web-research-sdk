@@ -1,0 +1,212 @@
+---
+title: Custom Modal — Plain JavaScript
+description: Build a fully custom modal overlay to display Insightfull studies instead of the default bottom-right overlay.
+---
+
+# Custom Modal — Plain JavaScript
+
+When you need full control over study presentation — a centered modal, a sidebar panel, a fullscreen takeover — use the `onStudyTrigger` callback in `InsightfullSDK.init()`.
+
+This example shows a centered modal with backdrop click-to-close and keyboard escape handling.
+
+## Complete example
+
+```html
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Insightfull Custom Modal</title>
+    <style>
+      .insightfull-modal-backdrop {
+        position: fixed;
+        inset: 0;
+        z-index: 999998;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        background: rgba(0, 0, 0, 0.6);
+        backdrop-filter: blur(4px);
+        animation: insightfull-fade-in 0.2s ease-out;
+      }
+
+      .insightfull-modal {
+        position: relative;
+        width: 90vw;
+        max-width: 600px;
+        height: 80vh;
+        max-height: 750px;
+        background: #fff;
+        border-radius: 16px;
+        box-shadow: 0 20px 60px rgba(0, 0, 0, 0.2);
+        overflow: hidden;
+        animation: insightfull-scale-in 0.2s ease-out;
+      }
+
+      .insightfull-modal-close {
+        position: absolute;
+        top: 12px;
+        right: 12px;
+        z-index: 100;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        width: 32px;
+        height: 32px;
+        border: none;
+        border-radius: 50%;
+        background: rgba(0, 0, 0, 0.6);
+        color: #fff;
+        font-size: 20px;
+        line-height: 1;
+        cursor: pointer;
+        transition: background 0.15s;
+      }
+
+      .insightfull-modal-close:hover {
+        background: rgba(0, 0, 0, 0.85);
+      }
+
+      .insightfull-modal-iframe {
+        width: 100%;
+        height: 100%;
+        border: none;
+      }
+
+      @keyframes insightfull-fade-in {
+        from {
+          opacity: 0;
+        }
+        to {
+          opacity: 1;
+        }
+      }
+
+      @keyframes insightfull-scale-in {
+        from {
+          opacity: 0;
+          transform: scale(0.96);
+        }
+        to {
+          opacity: 1;
+          transform: scale(1);
+        }
+      }
+    </style>
+  </head>
+  <body>
+    <button id="cta">View Pricing</button>
+    <button id="signup">Sign Up</button>
+
+    <script type="module">
+      import { InsightfullSDK } from "@insightfull/web-research-sdk";
+
+      const sdk = InsightfullSDK.init({
+        clientId: "env_abc",
+        onStudyTrigger: ({ study, iframeUrl }) => {
+          showModal(study.title ?? `Study ${study.id}`, iframeUrl);
+        },
+      });
+
+      // ── Modal helpers ──
+
+      function showModal(title, iframeUrl) {
+        removeModal();
+
+        const backdrop = document.createElement("div");
+        backdrop.className = "insightfull-modal-backdrop";
+
+        const modal = document.createElement("div");
+        modal.className = "insightfull-modal";
+
+        const closeBtn = document.createElement("button");
+        closeBtn.className = "insightfull-modal-close";
+        closeBtn.innerHTML = "&#xd7;";
+        closeBtn.setAttribute("aria-label", "Close study");
+        closeBtn.addEventListener("click", removeModal);
+
+        const iframe = document.createElement("iframe");
+        iframe.className = "insightfull-modal-iframe";
+        iframe.src = iframeUrl;
+        iframe.setAttribute("title", title);
+        iframe.setAttribute("allow", "clipboard-write");
+
+        modal.appendChild(closeBtn);
+        modal.appendChild(iframe);
+        backdrop.appendChild(modal);
+
+        // Close on backdrop click
+        backdrop.addEventListener("click", (e) => {
+          if (e.target === backdrop) removeModal();
+        });
+
+        document.body.appendChild(backdrop);
+        document.body.style.overflow = "hidden";
+      }
+
+      function removeModal() {
+        const backdrop = document.querySelector(".insightfull-modal-backdrop");
+        if (backdrop) backdrop.remove();
+        document.body.style.overflow = "";
+      }
+
+      // Close on Escape
+      document.addEventListener("keydown", (e) => {
+        if (e.key === "Escape") removeModal();
+      });
+
+      // ── Track events ──
+
+      document.querySelector("#cta").addEventListener("click", () => {
+        sdk.track("cta_clicked");
+      });
+
+      document.querySelector("#signup").addEventListener("click", () => {
+        sdk.track("signup_clicked");
+      });
+
+      // ── Clean up on unload ──
+
+      window.addEventListener("beforeunload", () => {
+        sdk.destroy();
+      });
+    </script>
+  </body>
+</html>
+```
+
+## How it works
+
+1. **`onStudyTrigger`** — the callback receives `{ study, iframeUrl, context }`. The `iframeUrl` is already constructed with the base64-encoded context payload, ready to use as an iframe `src`.
+
+2. **`showModal()`** — builds DOM elements for a centered modal: a dark semi-transparent backdrop, a white rounded container, a close button, and the study iframe.
+
+3. **`removeModal()`** — tears down the modal DOM and restores body scroll.
+
+4. **Backdrop click-to-close** — the backdrop click handler checks `e.target === backdrop` so clicks inside the modal are not intercepted.
+
+5. **Keyboard escape** — a `keydown` listener on `document` removes the modal when Escape is pressed.
+
+6. **`beforeunload` cleanup** — `sdk.destroy()` flushes queued events and stops the auto-tracker on page unload.
+
+## Using `buildContextPayload` directly
+
+If you need to construct the iframe URL yourself (for example, to use `<a>` redirection instead of an iframe), use the `buildContextPayload` utility:
+
+```ts
+import {
+  buildContextPayload,
+  InsightfullSDK,
+} from "@insightfull/web-research-sdk";
+
+const sdk = InsightfullSDK.init({
+  clientId: "env_abc",
+  onStudyTrigger: ({ study, context }) => {
+    const payload = buildContextPayload(context);
+    const slug = study.shareUrl ?? `id/${study.id}`;
+    const url = `${sdk.baseApiUrl}/study/${slug}?ctx=${encodeURIComponent(payload)}`;
+    window.open(url, "_blank");
+  },
+});
+```

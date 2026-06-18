@@ -1,0 +1,220 @@
+---
+title: Core SDK API
+description: Full API reference for the @insightfull/web-research-sdk core package.
+---
+
+# Core SDK API
+
+**Package:** `@insightfull/web-research-sdk`
+
+The core SDK provides event tracking, trigger evaluation, and study delivery for any web application. It works with a CDN script tag, ES module import, or the React bindings.
+
+## `InsightfullSDK`
+
+The main SDK class. All methods are called on an instance returned by `InsightfullSDK.init()`.
+
+### Factory
+
+#### `InsightfullSDK.init(options)`
+
+Creates and returns a new SDK instance. During construction the SDK:
+
+- Generates or retrieves a persistent visitor ID from `localStorage`
+- Fetches the remote SDK configuration
+- Starts the periodic flush timer (5 seconds)
+- Starts auto-tracking pageviews (unless `autoTrack` is `false`)
+
+**Type signature:**
+
+```ts
+static init(options: InsightfullInitOptions): InsightfullSDK
+```
+
+#### `InsightfullInitOptions`
+
+| Property         | Type                                   | Required | Default                        | Description                                                                                                          |
+| ---------------- | -------------------------------------- | -------- | ------------------------------ | -------------------------------------------------------------------------------------------------------------------- |
+| `clientId`       | `string`                               | Yes      | —                              | SDK environment ID from the Insightfull dashboard.                                                                   |
+| `apiBase`        | `string`                               | No       | `"https://app.insightfull.ai"` | Base URL for the API server.                                                                                         |
+| `autoTrack`      | `boolean`                              | No       | `true`                         | Whether to automatically track pageviews.                                                                            |
+| `onStudyTrigger` | `(params: StudyTriggerParams) => void` | No       | `undefined`                    | Custom callback fired when a study trigger matches. If not provided, the SDK renders a default bottom-right overlay. |
+
+### Methods
+
+| Method         | Signature                                                           | Description                                                                                                                                                  |
+| -------------- | ------------------------------------------------------------------- | ------------------------------------------------------------------------------------------------------------------------------------------------------------ |
+| `identify`     | `identify(userId: string, traits?: Record<string, unknown>): void`  | Associates a known user ID with the session and optionally merges traits into the SDK's attributes. Subsequent events carry this identity.                   |
+| `setCustomId`  | `setCustomId(key: string, value: string): void`                     | Sets a custom identifier key-value pair. Custom IDs are sent with every event and can be used in trigger filters.                                            |
+| `setAttribute` | `setAttribute(key: string, value: unknown): void`                   | Sets a custom attribute. Attributes are sent alongside events and available in trigger filter conditions.                                                    |
+| `track`        | `track(eventName: string, payload?: Record<string, unknown>): void` | Fires a custom event and immediately evaluates triggers. If a trigger matches, the associated study is displayed.                                            |
+| `destroy`      | `destroy(): Promise<void>`                                          | Tears down the SDK: stops auto-tracking, clears the flush timer, flushes queued events, and removes the default overlay. Always call before re-initializing. |
+
+### Getters
+
+| Getter                 | Return Type                         | Description                                                                    |
+| ---------------------- | ----------------------------------- | ------------------------------------------------------------------------------ |
+| `baseApiUrl`           | `string`                            | The configured API base URL.                                                   |
+| `currentVisitorId`     | `string`                            | The persistent visitor ID assigned to this browser (stored in `localStorage`). |
+| `userId`               | `string \| null`                    | The identified user ID, or `null` if `identify()` has not been called.         |
+| `currentCustomIds`     | `Readonly<Record<string, string>>`  | Read-only snapshot of all custom identifiers.                                  |
+| `currentAttributes`    | `Readonly<Record<string, unknown>>` | Read-only snapshot of all custom attributes.                                   |
+| `queueSize`            | `number`                            | Number of telemetry events currently queued for delivery.                      |
+| `hasActiveFlushTimer`  | `boolean`                           | Whether the periodic flush timer is active.                                    |
+| `hasActiveAutoTracker` | `boolean`                           | Whether auto-tracking is currently active.                                     |
+
+---
+
+## `buildContextPayload()`
+
+A standalone utility function that encodes the `SdkContext` object to a base64 string for use in iframe URLs.
+
+**Type signature:**
+
+```ts
+function buildContextPayload(context: SdkContext): string;
+```
+
+**Usage:**
+
+```ts
+import { buildContextPayload } from "@insightfull/web-research-sdk";
+
+const payload = buildContextPayload(context);
+const iframeUrl = `${apiBase}/study/some-slug?ctx=${encodeURIComponent(payload)}`;
+```
+
+The function serializes the context to JSON and encodes it with `btoa`. For non-ASCII content it falls back to `TextEncoder`.
+
+---
+
+## CDN script-tag usage
+
+When loaded via a `<script>` tag, `InsightfullSDK` is automatically registered on `window`:
+
+```html
+<script src="https://cdn.insightfull.ai/sdk.js"></script>
+<script>
+  const sdk = InsightfullSDK.init({ clientId: "env_abc" });
+  sdk.track("checkout_completed");
+</script>
+```
+
+All exported types are available as TypeScript-only — they are erased at runtime but provide full type safety when using an editor with IntelliSense.
+
+---
+
+## Types
+
+All types are exported from `@insightfull/web-research-sdk`.
+
+### `InsightfullInitOptions`
+
+```ts
+interface InsightfullInitOptions {
+  apiBase?: string;
+  autoTrack?: boolean;
+  clientId: string;
+  onStudyTrigger?: (params: StudyTriggerParams) => void;
+}
+```
+
+### `StudyTriggerParams`
+
+| Property    | Type           | Description                                                               |
+| ----------- | -------------- | ------------------------------------------------------------------------- |
+| `study`     | `StudyContent` | The matched study (title, branding, sections, share URL).                 |
+| `iframeUrl` | `string`       | Fully constructed iframe URL with base64-encoded context query parameter. |
+| `context`   | `SdkContext`   | The raw SDK context used to build the iframe URL.                         |
+
+```ts
+interface StudyTriggerParams {
+  study: StudyContent;
+  iframeUrl: string;
+  context: SdkContext;
+}
+```
+
+### `SdkContext`
+
+Context payload embedded in the iframe URL via `buildContextPayload`.
+
+| Property           | Type                      | Description                              |
+| ------------------ | ------------------------- | ---------------------------------------- |
+| `visitorId`        | `string`                  | Persistent visitor identifier.           |
+| `userId`           | `string \| null`          | Identified user ID, or `null`.           |
+| `customId`         | `Record<string, string>`  | Current custom identifiers.              |
+| `customAttributes` | `Record<string, unknown>` | Current custom attributes.               |
+| `sdkEnvironmentId` | `string`                  | The SDK environment client ID.           |
+| `source`           | `"web_sdk"`               | Always `"web_sdk"`.                      |
+| `triggerEvent`     | `string`                  | The event name that triggered the study. |
+
+```ts
+interface SdkContext {
+  customAttributes: Record<string, unknown>;
+  customId: Record<string, string>;
+  sdkEnvironmentId: string;
+  source: "web_sdk";
+  triggerEvent: string;
+  userId: string | null;
+  visitorId: string;
+}
+```
+
+### `StudyContent`
+
+Full study content returned in the SDK config response.
+
+| Property         | Type             | Description                                     |
+| ---------------- | ---------------- | ----------------------------------------------- |
+| `id`             | `number`         | Study ID.                                       |
+| `title`          | `string \| null` | Study title.                                    |
+| `type`           | `string`         | Study type identifier.                          |
+| `experienceMode` | `string`         | Experience mode.                                |
+| `branding`       | `StudyBranding`  | Branding configuration (logo, org name, theme). |
+| `sections`       | `StudySection[]` | Sections within the study.                      |
+| `shareUrl`       | `string \| null` | Public share URL slug, or `null`.               |
+| `triggers`       | `StudyTrigger[]` | Trigger definitions for the study.              |
+
+### `StudyBranding`
+
+| Property           | Type             | Description                       |
+| ------------------ | ---------------- | --------------------------------- |
+| `logoUrl`          | `string \| null` | URL to the organization logo.     |
+| `organizationName` | `string`         | Display name of the organization. |
+| `theme`            | `string \| null` | Theme identifier.                 |
+
+### `StudyTrigger`
+
+A single trigger definition within a study.
+
+| Property    | Type               | Description                                                                                    |
+| ----------- | ------------------ | ---------------------------------------------------------------------------------------------- |
+| `eventName` | `string`           | The event name this trigger listens for.                                                       |
+| `matchOn`   | `"event" \| "url"` | How the trigger is matched — by event name or URL pattern on pageviews. Defaults to `"event"`. |
+| `filters`   | `TriggerFilter[]`  | Filter predicates evaluated against user attributes or custom IDs.                             |
+| `isActive`  | `boolean`          | Whether this trigger is currently active.                                                      |
+| `priority`  | `number`           | Priority for ordering when multiple triggers match.                                            |
+
+### `TriggerFilter`
+
+A filter predicate evaluated against user attributes or custom IDs.
+
+| Property   | Type                   | Description                                             |
+| ---------- | ---------------------- | ------------------------------------------------------- |
+| `operator` | `"equals" \| "exists"` | Comparison operator.                                    |
+| `property` | `string`               | The attribute or custom ID key to test.                 |
+| `value`    | `unknown` _(optional)_ | The value to compare against (required for `"equals"`). |
+
+### Additional types
+
+| Type             | Description                                                                  |
+| ---------------- | ---------------------------------------------------------------------------- |
+| `SdkConfig`      | Full config response from the SDK config endpoint.                           |
+| `SdkEnvironment` | SDK environment details (allowed domains, active status, name).              |
+| `GlobalSettings` | Global SDK settings (cooldown days, session timeout).                        |
+| `SdkEvent`       | Union type for all event kinds.                                              |
+| `SdkEventType`   | Discriminated union of `"identify"`, `"event"`, `"attribute"`, `"pageview"`. |
+| `TrackEvent`     | A custom track event shape.                                                  |
+| `IdentifyEvent`  | An identify event shape.                                                     |
+| `AttributeEvent` | An attribute change event shape.                                             |
+| `PageviewEvent`  | A pageview event shape.                                                      |

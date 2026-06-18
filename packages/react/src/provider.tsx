@@ -11,6 +11,7 @@ import {
   type ReactNode,
 } from "react";
 import { InsightfullSDK } from "@insightfull/web-research-sdk";
+import type { InsightfullInitOptions } from "@insightfull/web-research-sdk";
 import type { InsightfullContextValue, InsightfullProviderProps } from "./types.js";
 
 const InsightfullContext = createContext<InsightfullContextValue>({
@@ -32,6 +33,7 @@ const InsightfullContext = createContext<InsightfullContextValue>({
 export function InsightfullProvider({
   children,
   clientId,
+  onStudyTrigger,
   options,
 }: InsightfullProviderProps): ReactNode {
   const [sdk, setSdk] = useState<InsightfullSDK | null>(null);
@@ -44,13 +46,15 @@ export function InsightfullProvider({
     }
     initRef.current = true;
 
-    const instance = InsightfullSDK.init({
+    const initOptions: InsightfullInitOptions = {
       clientId,
       ...options,
-    });
+      ...(onStudyTrigger ? { onStudyTrigger } : {}),
+    };
+    const instance = InsightfullSDK.init(initOptions);
     setSdk(instance);
     setIsReady(true);
-  }, [clientId, options]);
+  }, [clientId, onStudyTrigger, options]);
 
   useEffect(() => {
     initSdk();

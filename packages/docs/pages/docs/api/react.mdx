@@ -1,0 +1,130 @@
+---
+title: React SDK API
+description: Full API reference for the @insightfull/web-research-sdk-react package.
+---
+
+# React SDK API
+
+**Package:** `@insightfull/web-research-sdk-react`
+
+The React bindings provide a `<InsightfullProvider>` wrapper and a `useInsightfull()` hook. They depend on `@insightfull/web-research-sdk` (the core SDK) and have a peer dependency on `react` and `react-dom` version 18 or later.
+
+## `InsightfullProvider`
+
+Initializes the SDK on the client and makes it available to descendant components via React context.
+
+**Type signature:**
+
+```tsx
+function InsightfullProvider(props: InsightfullProviderProps): ReactNode;
+```
+
+### Props
+
+| Prop             | Type                                       | Required | Default     | Description                                                                     |
+| ---------------- | ------------------------------------------ | -------- | ----------- | ------------------------------------------------------------------------------- |
+| `clientId`       | `string`                                   | Yes      | —           | SDK environment ID from your Insightfull dashboard.                             |
+| `onStudyTrigger` | `(params: StudyTriggerParams) => void`     | No       | `undefined` | Passes through to `InsightfullSDK.init()`. Override to customize study display. |
+| `options`        | `Omit<InsightfullInitOptions, "clientId">` | No       | `{}`        | Additional initialization options forwarded to `InsightfullSDK.init()`.         |
+| `children`       | `React.ReactNode`                          | No       | `undefined` | React children rendered inside the provider.                                    |
+
+### SSR safety
+
+The provider is safe for server-side rendering:
+
+- **No `window`/`localStorage` access during render.** The SDK is initialized inside a `useEffect`, which only runs on the client.
+- **`initRef.current` guard** prevents double-initialization in React Strict Mode (development).
+- **`useCallback`** memoizes the initialization function so the `useEffect` only re-runs when props actually change.
+- **Cleanup on unmount.** The `useEffect` does **not** auto-call `sdk.destroy()`. If you need cleanup on unmount, wrap with your own `useEffect`:
+
+```tsx
+function App() {
+  const { sdk, isReady } = useInsightfull();
+
+  useEffect(() => {
+    return () => {
+      sdk?.destroy();
+    };
+  }, [sdk]);
+
+  return isReady ? <Main /> : <Loading />;
+}
+```
+
+---
+
+## `useInsightfull()`
+
+Hook to access the SDK instance from any component inside the provider tree.
+
+**Type signature:**
+
+```tsx
+function useInsightfull(): InsightfullContextValue;
+```
+
+### `InsightfullContextValue`
+
+| Property  | Type                     | Description                                                                             |
+| --------- | ------------------------ | --------------------------------------------------------------------------------------- |
+| `sdk`     | `InsightfullSDK \| null` | The SDK instance, or `null` during SSR and before client-side initialization completes. |
+| `isReady` | `boolean`                | `true` once the SDK has been initialized on the client.                                 |
+
+### Guard against null
+
+Always check `isReady` (or guard `sdk`) before calling SDK methods. The SDK is `null`:
+
+- During server-side rendering
+- Before the initial client-side render completes
+- If used outside an `<InsightfullProvider>`
+
+```tsx
+const { sdk, isReady } = useInsightfull();
+
+const handleClick = () => {
+  if (!isReady || !sdk) return;
+  sdk.track("button_clicked");
+};
+```
+
+---
+
+## `InsightfullProviderProps`
+
+```ts
+interface InsightfullProviderProps {
+  clientId: string;
+  onStudyTrigger?: (params: StudyTriggerParams) => void;
+  options?: Omit<InsightfullInitOptions, "clientId">;
+  children?: React.ReactNode;
+}
+```
+
+---
+
+## Quick setup
+
+```tsx
+import {
+  InsightfullProvider,
+  useInsightfull,
+} from "@insightfull/web-research-sdk-react";
+
+function TrackButton() {
+  const { sdk, isReady } = useInsightfull();
+
+  return (
+    <button onClick={() => isReady && sdk?.track("cta_clicked")}>
+      Get Started
+    </button>
+  );
+}
+
+export default function Root() {
+  return (
+    <InsightfullProvider clientId="env_abc">
+      <TrackButton />
+    </InsightfullProvider>
+  );
+}
+```

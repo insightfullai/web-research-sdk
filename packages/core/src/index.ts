@@ -14,6 +14,7 @@
 
 // biome-ignore lint/performance/noBarrelFile: library-level entry point
 export { InsightfullSDK } from "./insightfull-sdk.js";
+export { buildContextPayload } from "./iframe-renderer/iframe-renderer.js";
 export type {
   AttributeEvent,
   GlobalSettings,
@@ -29,6 +30,7 @@ export type {
   StudyContent,
   StudySection,
   StudyTrigger,
+  StudyTriggerParams,
   TrackEvent,
   TriggerFilter,
 } from "./types/index.js";

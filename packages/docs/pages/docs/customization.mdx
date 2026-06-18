@@ -1,0 +1,156 @@
+---
+title: Customization
+description: Control how studies appear — from the default overlay to custom modals, redirects, and manual iframe construction.
+---
+
+# Customization
+
+The SDK gives you full control over how studies are displayed. Use the default overlay, or override with your own rendering logic.
+
+## Default overlay
+
+When no `onStudyTrigger` callback is provided, the SDK renders a **bottom-right overlay**:
+
+- 420px wide × 640px tall
+- Close button in the top-right corner
+- Iframe sandboxed with `allow-scripts allow-same-origin`
+- Dismissible by clicking outside
+
+This works out of the box with zero configuration — just call `InsightfullSDK.init({ clientId })`.
+
+## `onStudyTrigger` callback
+
+For full control, pass an `onStudyTrigger` callback to `init()`. The callback receives three arguments:
+
+| Parameter   | Type           | Description                                           |
+| ----------- | -------------- | ----------------------------------------------------- |
+| `study`     | `StudyContent` | Study metadata (id, title, branding, sections)        |
+| `iframeUrl` | `string`       | Full URL to load in an iframe for this study          |
+| `context`   | `SdkContext`   | Current SDK context (visitor ID, user ID, attributes) |
+
+```ts
+const sdk = InsightfullSDK.init({
+  clientId: "env_abc",
+  onStudyTrigger: ({ study, iframeUrl, context }) => {
+    // Your custom display logic here
+  },
+});
+```
+
+:::tip
+Returning `false` from the callback cancels the trigger — the study won't display and the cooldown won't be recorded.
+:::
+
+## Plain JS modal example
+
+Here's a complete modal implementation using vanilla DOM APIs:
+
+```js
+const sdk = InsightfullSDK.init({
+  clientId: "env_abc",
+  onStudyTrigger: ({ study, iframeUrl }) => {
+    const overlay = document.createElement("div");
+    overlay.style.cssText =
+      "position:fixed;inset:0;background:rgba(0,0,0,0.5);z-index:9999;display:flex;align-items:center;justify-content:center;";
+    overlay.innerHTML = `
+      <div style="background:white;border-radius:12px;width:90vw;max-width:600px;height:80vh;overflow:hidden;position:relative;">
+        <button
+          onclick="this.closest('div').parentElement.remove()"
+          style="position:absolute;top:8px;right:8px;background:none;border:none;font-size:24px;cursor:pointer;line-height:1;"
+          aria-label="Close study"
+        >\u00d7</button>
+        <iframe
+          src="${iframeUrl}"
+          style="width:100%;height:100%;border:none;"
+          sandbox="allow-scripts allow-same-origin"
+          title="${study.title}"
+        ></iframe>
+      </div>`;
+    document.body.appendChild(overlay);
+  },
+});
+```
+
+## Redirect pattern
+
+Instead of displaying a modal, navigate the user to the study:
+
+```ts
+onStudyTrigger: ({ iframeUrl }) => {
+  window.location.href = iframeUrl;
+};
+```
+
+## Custom container
+
+Render the study into an existing DOM element:
+
+```ts
+onStudyTrigger: ({ study, iframeUrl }) => {
+  const container = document.getElementById("study-container");
+  if (container) {
+    container.innerHTML = `
+      <iframe
+        src="${iframeUrl}"
+        sandbox="allow-scripts allow-same-origin"
+        title="${study.title}"
+        style="width:100%;height:100%;border:none;"
+      ></iframe>`;
+  }
+};
+```
+
+## `buildContextPayload()`
+
+A public utility for constructing iframe URLs manually. This is useful when you need to pass context to a study outside of the default iframe injection:
+
+```ts
+import {
+  buildContextPayload,
+  InsightfullSDK,
+} from "@insightfull/web-research-sdk";
+
+const sdk = InsightfullSDK.init({ clientId: "env_abc" });
+
+// Build the context payload manually
+const context = {
+  visitorId: sdk.currentVisitorId,
+  userId: sdk.userId,
+  customId: sdk.currentCustomIds,
+  customAttributes: sdk.currentAttributes,
+  sdkEnvironmentId: "env_abc",
+  source: "web_sdk",
+  triggerEvent: "my_custom_event",
+};
+
+const payload = buildContextPayload(context);
+const url = `https://app.insightfull.ai/study/abc?ctx=${encodeURIComponent(payload)}`;
+```
+
+`buildContextPayload()` returns a base64-encoded JSON string of the context object. Decode it on the server to extract visitor and user data.
+
+## Auto-tracking off
+
+Disable automatic pageview tracking:
+
+```ts
+const sdk = InsightfullSDK.init({
+  clientId: "env_abc",
+  autoTrack: false,
+});
+```
+
+When `autoTrack` is `false`, URL triggers and automatic pageview events are **not** sent. You must call `sdk.track("pageview")` manually if you want URL-based triggers to fire.
+
+## API base URL
+
+Point the SDK at a self-hosted or custom endpoint:
+
+```ts
+const sdk = InsightfullSDK.init({
+  clientId: "env_abc",
+  apiBase: "https://custom.domain",
+});
+```
+
+The default API base is `https://app.insightfull.ai`. Change it only if you're running Insightfull on your own infrastructure.

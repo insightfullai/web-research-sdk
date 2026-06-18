@@ -1,0 +1,113 @@
+---
+title: Triggers
+description: Understand how event and URL triggers deliver studies to your users.
+---
+
+# Triggers
+
+Studies are delivered when a **trigger** matches. You define triggers in your Insightfull dashboard — the SDK evaluates them in the browser and displays the matching study.
+
+## How triggers work
+
+Each trigger defines:
+
+- **A matching rule** — which events or URLs trigger the study
+- **Optional filters** — conditions that narrow when the trigger fires
+- **A cooldown** — how long before the same study can re-display
+
+Triggers are evaluated client-side. The SDK downloads trigger configurations on init and re-evaluates them on every tracked event or pageview.
+
+## Event triggers
+
+An event trigger matches when `sdk.track("event_name")` is called. Set the trigger's `matchOn` to `"event"` in the dashboard.
+
+```ts
+// In your app
+sdk.track("signup_completed", { plan: "pro" });
+```
+
+When this event fires, the SDK checks all event triggers. If one matches `"signup_completed"`, the study displays.
+
+Multiple studies can match the same event name. The SDK evaluates all matching triggers and displays the first eligible study (respecting cooldowns).
+
+## URL triggers
+
+A URL trigger matches the current page URL on page load. Set `matchOn` to `"url"` and provide a glob pattern:
+
+| Pattern                   | Matches                                      |
+| ------------------------- | -------------------------------------------- |
+| `/checkout/*`             | `/checkout/`, `/checkout/shipping`           |
+| `/pricing`                | `/pricing` exactly                           |
+| `/dashboard/**`           | `/dashboard/`, `/dashboard/settings/billing` |
+| `https://*.example.com/*` | Any subdomain of example.com                 |
+
+URL triggers are evaluated automatically on pageview when `autoTrack` is `true` (the default).
+
+## Trigger filters
+
+Refine triggers with attribute conditions. Filters combine with **AND** logic — all conditions must pass.
+
+### Equality filter
+
+Check that an attribute equals a specific value:
+
+```json
+{ "key": "plan", "operator": "equals", "value": "pro" }
+```
+
+This filter passes when the user's `plan` attribute (set via `sdk.identify` or `sdk.setAttribute`) is exactly `"pro"`.
+
+### Existence filter
+
+Check that an attribute exists (is set and is not null/undefined):
+
+```json
+{ "key": "email", "operator": "exists" }
+```
+
+This filter passes when the user has an `email` attribute set, regardless of its value.
+
+### Multiple filters
+
+When you add multiple filters to a trigger, they all must pass:
+
+```json
+[
+  { "key": "plan", "operator": "equals", "value": "pro" },
+  { "key": "email", "operator": "exists" }
+]
+```
+
+This trigger only fires when the user has `plan = "pro"` **and** has an `email` attribute set.
+
+:::note
+Filters are configured in the **Insightfull dashboard** — not in code. The examples above show the JSON structure the dashboard uses internally.
+:::
+
+## Cooldown
+
+Each study has a cooldown period configured in the dashboard. After a study is displayed to a user, it won't re-display until the cooldown expires — even if the trigger fires again.
+
+This prevents spamming users with the same study on repeated events. Cooldowns are tracked per-study, per-user.
+
+## Debug logging
+
+Pass `debug: true` in your init options to see trigger evaluation traces in the browser console:
+
+```ts
+const sdk = InsightfullSDK.init({
+  clientId: "env_abc",
+  debug: true,
+});
+```
+
+With debug mode enabled, the SDK logs:
+
+- Which triggers were downloaded
+- Which events are being evaluated
+- Why a trigger matched or didn't match
+- Cooldown status for each study
+
+:::warning
+Debug logging may emit sensitive data (user IDs, attribute values). Disable it in production.
+:::

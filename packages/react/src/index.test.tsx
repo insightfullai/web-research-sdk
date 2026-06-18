@@ -74,6 +74,20 @@ describe("InsightfullProvider", () => {
 
     expect(mockedInit).toHaveBeenCalledTimes(1);
   });
+
+  it("passes onStudyTrigger through to SDK init", async () => {
+    const onStudyTrigger = vi.fn();
+
+    render(
+      <InsightfullProvider clientId="env_test" onStudyTrigger={onStudyTrigger}>
+        {" "}
+      </InsightfullProvider>,
+    );
+
+    await vi.waitFor(() => {
+      expect(mockedInit).toHaveBeenCalledWith(expect.objectContaining({ onStudyTrigger }));
+    });
+  });
 });
 
 describe("useInsightfull", () => {

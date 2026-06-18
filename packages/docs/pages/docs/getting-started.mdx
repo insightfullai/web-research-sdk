@@ -1,0 +1,128 @@
+---
+title: Getting Started
+description: Install and configure the Insightfull Web Research SDK in your application.
+---
+
+# Getting Started
+
+Add event-triggered research studies to your web application in minutes.
+
+## Install
+
+Choose your setup:
+
+:::code-group
+
+```sh [npm]
+npm install @insightfull/web-research-sdk
+```
+
+```sh [yarn]
+yarn add @insightfull/web-research-sdk
+```
+
+```sh [pnpm]
+pnpm add @insightfull/web-research-sdk
+```
+
+:::
+
+If you're using React, also install the React bindings:
+
+:::code-group
+
+```sh [npm]
+npm install @insightfull/web-research-sdk @insightfull/web-research-sdk-react react react-dom
+```
+
+```sh [yarn]
+yarn add @insightfull/web-research-sdk @insightfull/web-research-sdk-react react react-dom
+```
+
+```sh [pnpm]
+pnpm add @insightfull/web-research-sdk @insightfull/web-research-sdk-react react react-dom
+```
+
+:::
+
+## Quick start
+
+The fastest way — drop the CDN script tag and call `init`:
+
+```html
+<script src="https://cdn.insightfull.ai/sdk.js"></script>
+<script>
+  const sdk = InsightfullSDK.init({ clientId: "env_abc" });
+</script>
+```
+
+That's it. With `autoTrack` enabled (the default), the SDK automatically tracks pageviews. If a study trigger matches, the study appears.
+
+:::note
+Find your `clientId` in the **Insightfull dashboard → SDK Management**. This is your SDK environment ID and is required for the SDK to connect.
+:::
+
+For ES module usage:
+
+```ts
+import { InsightfullSDK } from "@insightfull/web-research-sdk";
+
+const sdk = InsightfullSDK.init({ clientId: "env_abc" });
+```
+
+## Track events
+
+Call `track()` to fire custom events. If a trigger in your dashboard matches the event name, the associated study is displayed:
+
+```ts
+// Track a checkout completion
+sdk.track("checkout_completed", { total: 99.99 });
+
+// Track a feature usage
+sdk.track("feature_used", { feature: "dark_mode" });
+```
+
+The optional `payload` is sent with the event and can be used by trigger filters (see [Triggers](/docs/triggers)).
+
+## Identify users
+
+Attach a known user ID and optional traits. Traits can be referenced in trigger filters:
+
+```ts
+sdk.identify("user_123", { plan: "pro", region: "us-east" });
+```
+
+Calling `identify` updates the current session context immediately. Subsequent triggers will see the new identity.
+
+## Custom IDs & attributes
+
+Set key-value pairs that travel with every event and can be used in trigger conditions:
+
+```ts
+// Custom IDs — used for account-level lookups
+sdk.setCustomId("team", "growth");
+sdk.setCustomId("org", "acme-corp");
+
+// Custom attributes — free-form metadata
+sdk.setAttribute("browser", "chrome");
+sdk.setAttribute("subscription_tier", "enterprise");
+```
+
+Custom IDs are surfaced in the dashboard and can be used to filter trigger evaluation. Attributes are sent alongside events and available in trigger filter conditions.
+
+## Cleanup
+
+When the user navigates away or you need to stop tracking, call `destroy()`:
+
+```ts
+await sdk.destroy();
+```
+
+This flushes any queued events, stops the auto-tracker, and tears down the SDK instance. Always call `destroy()` before re-initializing the SDK.
+
+## Next steps
+
+- [Triggers](/docs/triggers) — understand how studies are delivered
+- [Customization](/docs/customization) — control how studies appear
+- [Core SDK API](/docs/api/core) — full API reference
+- [React API](/docs/api/react) — React provider and hooks

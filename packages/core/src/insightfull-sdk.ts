@@ -11,7 +11,7 @@ import { AutoTracker } from "./auto-tracker/auto-tracker.js";
 import { fetchConfig } from "./config-fetcher/config-fetcher.js";
 import { evaluateTriggers, setCooldown } from "./evaluation-engine/evaluation-engine.js";
 import { EventQueue } from "./event-queue/event-queue.js";
-import { renderStudy } from "./iframe-renderer/iframe-renderer.js";
+import { renderStudy, buildContextPayload } from "./iframe-renderer/iframe-renderer.js";
 import { sendTelemetry } from "./telemetry-sender/telemetry-sender.js";
 import type {
   GlobalSettings,
@@ -31,6 +31,7 @@ export class InsightfullSDK {
   private readonly clientId: string;
   private readonly apiBase: string;
   private readonly visitorId: string;
+  private readonly _options: InsightfullInitOptions;
   private _userId: string | null = null;
   private readonly customId: Record<string, string> = {};
   private readonly attributes: Record<string, unknown> = {};
@@ -81,6 +82,7 @@ export class InsightfullSDK {
   }
 
   constructor(options: InsightfullInitOptions) {
+    this._options = options;
     this.clientId = options.clientId;
     this.apiBase = options.apiBase ?? "https://app.insightfull.ai";
     this.visitorId = this.getOrCreateVisitorId();
@@ -305,7 +307,8 @@ export class InsightfullSDK {
   }
 
   /**
-   * Show a study in a positioned iframe.
+   * Show a study — uses the custom onStudyTrigger callback if provided,
+   * otherwise renders the default bottom-right overlay.
    */
   private showStudy(study: StudyContent, triggerEvent: string): void {
     const context: SdkContext = {
@@ -318,6 +321,17 @@ export class InsightfullSDK {
       triggerEvent,
     };
 
+    // If developer provided a custom display callback, use it
+    if (this._options.onStudyTrigger) {
+      const payload = buildContextPayload(context);
+      const shareSlug = study.shareUrl ?? `id/${study.id}`;
+      const iframeUrl = `${this.apiBase}/study/${shareSlug}?ctx=${encodeURIComponent(payload)}`;
+
+      this._options.onStudyTrigger({ study, iframeUrl, context });
+      return;
+    }
+
+    // Default: render bottom-right overlay
     renderStudy(this.apiBase, study, context);
   }
 }
