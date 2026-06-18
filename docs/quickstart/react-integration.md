@@ -1,81 +1,53 @@
-# React integration
+# React Integration
 
-The React package is optional and depends on `@insightfull/web-research-sdk`.
+## Install
 
-## Public React exports
+```bash
+npm install @insightfull/web-research-sdk @insightfull/web-research-sdk-react
+```
 
-- `createReactWebResearchClient`
-- `getOverlayBridgeStatus`
-- `useMaybeWebResearchClient`
-- `useOverlayBridgeSnapshot`
-- `useOverlayBridgeStatus`
-- `useWebResearchClient`
-- `WebResearchProvider`
-- `mergeOverlayIframeRef`
-- `OverlayBridgeFrame`
-- `useOverlayBridgeHost`
+## Provider setup
 
-## Provider + iframe example
+Wrap your app with `InsightfullProvider`. The SDK initializes on the client — safe for Next.js and server-side rendering.
 
 ```tsx
-import { createElement } from "react";
-import {
-  OverlayBridgeFrame,
-  WebResearchProvider,
-  createReactWebResearchClient,
-  useOverlayBridgeStatus,
-} from "@insightfull/web-research-sdk-react";
+import { InsightfullProvider } from "@insightfull/web-research-sdk-react";
 
-const client = createReactWebResearchClient({
-  environment: "prod",
-  bridge: {
-    iframeOrigin: "https://overlay.example.com",
-    parentOrigin: window.location.origin,
-    handshake: {
-      overlayToken: "overlay-runtime-token",
-      overlayTokenExpiresAt: "2026-04-01T00:00:00.000Z",
-      context: {
-        organizationId: 1,
-        studyId: 10,
-        sectionId: 20,
-        sessionId: "session-123",
-        tabId: "tab-1",
-      },
-      uiConfig: {
-        defaultPosition: "bottom-right",
-        showAiPersona: false,
-      },
-      consent: {
-        mode: "best_effort",
-        captureAllowed: true,
-      },
-    },
-  },
-});
-
-function OverlayStatus() {
-  const status = useOverlayBridgeStatus();
-  return createElement("div", null, status.lifecycleState);
-}
-
-export function App() {
-  return createElement(
-    WebResearchProvider,
-    { client },
-    createElement(OverlayStatus),
-    createElement(OverlayBridgeFrame, {
-      src: "https://overlay.example.com/embed",
-      title: "Insightfull overlay",
-    }),
+function App() {
+  return (
+    <InsightfullProvider clientId="env_abc123">
+      <YourApp />
+    </InsightfullProvider>
   );
 }
 ```
 
-## Host behavior
+## Using the SDK in components
 
-- Importing the React package has no browser-global side effects.
-- `OverlayBridgeFrame` uses secure iframe defaults from the protocol doc:
-  - `allow="microphone; camera; autoplay"`
-  - `sandbox="allow-scripts allow-same-origin allow-forms allow-popups"`
-  - `referrerPolicy="strict-origin-when-cross-origin"`
-- `useOverlayBridgeHost` is available when you need to render your own iframe element.
+```tsx
+import { useInsightfull } from "@insightfull/web-research-sdk-react";
+
+function CheckoutButton() {
+  const { sdk, isReady } = useInsightfull();
+
+  const handleClick = () => {
+    if (isReady) {
+      sdk.track("checkout_completed", { total: 99.99 });
+    }
+  };
+
+  return <button onClick={handleClick}>Complete Purchase</button>;
+}
+```
+
+## Disabling auto-tracking
+
+```tsx
+<InsightfullProvider clientId="env_abc123" options={{ autoTrack: false }}>
+  <YourApp />
+</InsightfullProvider>
+```
+
+## SSR / Next.js
+
+The provider is safe for server rendering. `useInsightfull()` returns `{ sdk: null, isReady: false }` during SSR. The SDK initializes inside `useEffect` on the client only. Cleanup is automatic on unmount.
