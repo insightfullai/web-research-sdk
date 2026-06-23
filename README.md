@@ -28,7 +28,6 @@ The host-side surface — iframe host runtime, bridge transport, protocol valida
 - **Tiny by design** — 5.6 KB gzipped, zero runtime dependencies.
 - **Framework-agnostic core** — use the `@insightfull/web-research-sdk` runtime directly in any web app.
 - **First-class React** — `<InsightfullProvider>` + `useInsightfull()` hook, SSR-safe (Next.js friendly).
-- **Script-tag option** — drop in via `<script src="https://cdn.insightfull.ai/sdk.js">` with no build step.
 - **TypeScript-first** — strict types ship in the box.
 - **Versioned bridge protocol** — stable contract between host SDK and Insightfull Cloud.
 - **Trigger-based studies** — fire `track("checkout_completed", { total: 99.99 })` and matching studies appear.
@@ -84,16 +83,6 @@ function CheckoutButton() {
     </button>
   );
 }
-```
-
-### Script tag (no build step)
-
-```html
-<script src="https://cdn.insightfull.ai/sdk.js"></script>
-<script>
-  const sdk = InsightfullSDK.init({ clientId: "env_..." });
-  sdk.track("pageview");
-</script>
 ```
 
 More in the [installation guide](docs/quickstart/installation.md) and [React integration guide](docs/quickstart/react-integration.md).

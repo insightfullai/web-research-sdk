@@ -4,12 +4,10 @@
  * Drop-in vanilla JS SDK for event-triggered study delivery.
  *
  * Usage:
- *   <script src="https://cdn.insightfull.ai/sdk.js"></script>
- *   <script>
- *     const sdk = InsightfullSDK.init({ clientId: "env_abc123" });
- *     sdk.identify("user_123", { plan: "pro" });
- *     sdk.track("checkout_completed", { total: 99.99 });
- *   </script>
+ *   import { InsightfullSDK } from "@insightfull/web-research-sdk";
+ *   const sdk = InsightfullSDK.init({ clientId: "env_abc123" });
+ *   sdk.identify("user_123", { plan: "pro" });
+ *   sdk.track("checkout_completed", { total: 99.99 });
  */
 
 // biome-ignore lint/performance/noBarrelFile: library-level entry point

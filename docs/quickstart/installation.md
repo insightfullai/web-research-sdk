@@ -8,16 +8,6 @@ npm install @insightfull/web-research-sdk
 yarn add @insightfull/web-research-sdk
 ```
 
-## Script tag (no build step)
-
-```html
-<script src="https://cdn.insightfull.ai/sdk.js"></script>
-<script>
-  const sdk = InsightfullSDK.init({ clientId: "env_..." });
-  sdk.track("pageview");
-</script>
-```
-
 ## Get your clientId
 
 1. Go to your Insightfull dashboard → **Settings → SDK**
