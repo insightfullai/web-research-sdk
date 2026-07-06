@@ -34,11 +34,11 @@ sdk.track("signup");
 
 ## Configuration
 
-| Option      | Type    | Default                    | Description                          |
-| ----------- | ------- | -------------------------- | ------------------------------------ |
-| `clientId`  | string  | required                   | Environment client ID from dashboard |
-| `autoTrack` | boolean | true                       | Automatically track pageviews        |
-| `apiBase`   | string  | https://app.insightfull.ai | API server URL                       |
+| Option      | Type    | Default                | Description                          |
+| ----------- | ------- | ---------------------- | ------------------------------------ |
+| `clientId`  | string  | required               | Environment client ID from dashboard |
+| `autoTrack` | boolean | true                   | Automatically track pageviews        |
+| `apiBase`   | string  | https://insightfull.ai | API server URL                       |
 
 ## Targeting with custom attributes
 

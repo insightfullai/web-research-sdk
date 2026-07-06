@@ -25,6 +25,7 @@ import type {
 const FLUSH_INTERVAL_MS = 5000;
 const MAX_QUEUE_SIZE = 100;
 const BATCH_SIZE = 20;
+const SDK_VERSION = "1.0.0";
 const VISITOR_ID_KEY = "insightfull_visitor_id";
 
 export class InsightfullSDK {
@@ -36,6 +37,7 @@ export class InsightfullSDK {
   private readonly attributes: Record<string, unknown> = {};
   private config: SdkConfig | null = null;
   private readonly eventQueue: EventQueue;
+  private readonly pendingTriggerEvaluations: string[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private autoTracker: AutoTracker | null = null;
   private destroyed = false;
@@ -82,7 +84,7 @@ export class InsightfullSDK {
 
   constructor(options: InsightfullInitOptions) {
     this.clientId = options.clientId;
-    this.apiBase = options.apiBase ?? "https://app.insightfull.ai";
+    this.apiBase = options.apiBase ?? "https://insightfull.ai";
     this.visitorId = this.getOrCreateVisitorId();
 
     this.eventQueue = new EventQueue({
@@ -233,8 +235,18 @@ export class InsightfullSDK {
    */
   private async fetchConfig(): Promise<void> {
     const config = await fetchConfig(this.apiBase, this.clientId);
-    if (config) {
-      this.config = config;
+    if (!config || this.destroyed) {
+      return;
+    }
+
+    this.config = config;
+    this.flushPendingTriggerEvaluations();
+  }
+
+  private flushPendingTriggerEvaluations(): void {
+    const pendingEvaluations = this.pendingTriggerEvaluations.splice(0);
+    for (const eventName of pendingEvaluations) {
+      this.evaluateAndShow(eventName);
     }
   }
 
@@ -285,6 +297,7 @@ export class InsightfullSDK {
    */
   private evaluateAndShow(eventName: string): void {
     if (!this.config) {
+      this.pendingTriggerEvaluations.push(eventName);
       return;
     }
 
@@ -314,6 +327,7 @@ export class InsightfullSDK {
       customId: { ...this.customId },
       customAttributes: { ...this.attributes },
       sdkEnvironmentId: this.clientId,
+      sdkVersion: SDK_VERSION,
       source: "web_sdk",
       triggerEvent,
     };

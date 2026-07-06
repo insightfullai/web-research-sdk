@@ -25,7 +25,7 @@ function buildConfigUrl(apiBase: string, clientId: string): string {
   const params = new URLSearchParams({
     input: JSON.stringify({ clientId }),
   });
-  return `${apiBase}/trpc/sdk.getConfig?${params.toString()}`;
+  return `${apiBase}/trpc/sdk.getSdkConfig?${params.toString()}`;
 }
 
 /**
@@ -63,8 +63,8 @@ export async function fetchConfig(apiBase: string, clientId: string): Promise<Sd
         return null; // tRPC error, not a valid config
       }
 
-      // tRPC wraps the response in { result: { data: ... } }
-      const data = json?.result?.data ?? json;
+      // tRPC can wrap the response as either plain JSON or SuperJSON.
+      const data = json?.result?.data?.json ?? json?.result?.data ?? json;
       return data as SdkConfig;
     } catch {
       clearTimeout(timeout);

@@ -35,7 +35,19 @@ describe("fetchConfig", () => {
       json: async () => ({ result: { data: mockConfig } }),
     } as Response);
 
-    const result = await fetchConfig("https://app.insightfull.ai", "env_abc");
+    const result = await fetchConfig("https://insightfull.ai", "env_abc");
+
+    expect(result).toEqual(mockConfig);
+  });
+
+  it("returns parsed config from a SuperJSON tRPC envelope", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ result: { data: { json: mockConfig } } }),
+    } as Response);
+
+    const result = await fetchConfig("https://insightfull.ai", "env_abc");
 
     expect(result).toEqual(mockConfig);
   });
@@ -47,7 +59,7 @@ describe("fetchConfig", () => {
       json: async () => ({}),
     } as Response);
 
-    const result = await fetchConfig("https://app.insightfull.ai", "invalid_client");
+    const result = await fetchConfig("https://insightfull.ai", "invalid_client");
 
     expect(result).toBeNull();
   });
@@ -71,7 +83,7 @@ describe("fetchConfig", () => {
         json: async () => ({ result: { data: mockConfig } }),
       } as Response);
 
-    const result = await fetchConfig("https://app.insightfull.ai", "env_abc");
+    const result = await fetchConfig("https://insightfull.ai", "env_abc");
 
     expect(result).toEqual(mockConfig);
     expect(fetchMock).toHaveBeenCalledTimes(3);
@@ -80,7 +92,7 @@ describe("fetchConfig", () => {
   it("returns null after max retries exceeded", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new Error("Network error"));
 
-    const result = await fetchConfig("https://app.insightfull.ai", "env_abc");
+    const result = await fetchConfig("https://insightfull.ai", "env_abc");
 
     expect(result).toBeNull();
   });
@@ -92,9 +104,10 @@ describe("fetchConfig", () => {
       json: async () => ({ result: { data: mockConfig } }),
     } as Response);
 
-    await fetchConfig("https://app.insightfull.ai", "env_abc");
+    await fetchConfig("https://insightfull.ai", "env_abc");
 
     const calledUrl = fetchMock.mock.calls[0]![0] as string;
+    expect(calledUrl).toContain("https://insightfull.ai/trpc/sdk.getSdkConfig?");
     const queryString = calledUrl.split("?")[1];
     const searchParams = new URLSearchParams(queryString);
     const inputStr = searchParams.get("input");

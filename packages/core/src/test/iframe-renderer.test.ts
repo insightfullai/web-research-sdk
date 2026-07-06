@@ -31,6 +31,7 @@ function makeContext(overrides: Partial<SdkContext> = {}): SdkContext {
     customId: {},
     customAttributes: {},
     sdkEnvironmentId: "env_abc",
+    sdkVersion: "1.0.0",
     source: "web_sdk",
     triggerEvent: "test_event",
     ...overrides,
@@ -45,7 +46,7 @@ describe("iframe renderer", () => {
   it("creates a positioned div with correct styles", () => {
     const study = makeStudy();
     const context = makeContext();
-    const host = renderStudy("https://app.insightfull.ai", study, context);
+    const host = renderStudy("https://insightfull.ai", study, context);
 
     expect(host.id).toBe("insightfull-study-1");
     expect(host.style.position).toBe("fixed");
@@ -59,20 +60,20 @@ describe("iframe renderer", () => {
   it("creates an iframe with correct src including context", () => {
     const study = makeStudy({ shareUrl: "my-study" });
     const context = makeContext();
-    renderStudy("https://app.insightfull.ai", study, context);
+    renderStudy("https://insightfull.ai", study, context);
 
     const host = document.getElementById("insightfull-study-1");
     expect(host).not.toBeNull();
 
     const iframe = host?.querySelector("iframe");
     expect(iframe).not.toBeNull();
-    expect(iframe?.src).toContain("https://app.insightfull.ai/study/my-study?ctx=");
+    expect(iframe?.src).toContain("https://insightfull.ai/study/my-study?ctx=");
   });
 
   it("iframe has correct allow attributes", () => {
     const study = makeStudy();
     const context = makeContext();
-    renderStudy("https://app.insightfull.ai", study, context);
+    renderStudy("https://insightfull.ai", study, context);
 
     const iframe = document.querySelector("iframe");
     expect(iframe?.getAttribute("allow")).toBe("clipboard-write");
@@ -81,7 +82,7 @@ describe("iframe renderer", () => {
   it("iframe has title attribute from study", () => {
     const study = makeStudy({ title: "User Interview" });
     const context = makeContext();
-    renderStudy("https://app.insightfull.ai", study, context);
+    renderStudy("https://insightfull.ai", study, context);
 
     const iframe = document.querySelector("iframe");
     expect(iframe?.getAttribute("title")).toBe("User Interview");
@@ -106,7 +107,7 @@ describe("iframe renderer", () => {
   it("removeStudy cleans up DOM", () => {
     const study = makeStudy({ id: 99 });
     const context = makeContext();
-    renderStudy("https://app.insightfull.ai", study, context);
+    renderStudy("https://insightfull.ai", study, context);
 
     expect(document.getElementById("insightfull-study-99")).not.toBeNull();
 
@@ -124,10 +125,10 @@ describe("iframe renderer", () => {
     const context1 = makeContext({ triggerEvent: "event1" });
     const context2 = makeContext({ triggerEvent: "event2" });
 
-    renderStudy("https://app.insightfull.ai", study, context1);
+    renderStudy("https://insightfull.ai", study, context1);
     const host1 = document.getElementById("insightfull-study-1");
 
-    renderStudy("https://app.insightfull.ai", study, context2);
+    renderStudy("https://insightfull.ai", study, context2);
     const host2 = document.getElementById("insightfull-study-1");
 
     // Should be a different element (old one removed, new one created)
