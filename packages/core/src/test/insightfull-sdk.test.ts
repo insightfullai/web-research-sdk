@@ -153,7 +153,7 @@ describe("InsightfullSDK", () => {
 
   it("uses default apiBase when not specified", () => {
     const sdk = InsightfullSDK.init({ clientId: "env_test", autoTrack: false });
-    expect(sdk.baseApiUrl).toBe("https://app.insightfull.ai");
+    expect(sdk.baseApiUrl).toBe("https://insightfull.ai");
     void sdk.destroy();
   });
 
@@ -172,13 +172,13 @@ describe("InsightfullSDK", () => {
     const sdk = InsightfullSDK.init({ clientId: "env_test", autoTrack: false });
 
     await waitForSdkConfig();
-    expect(mockedFetchConfig).toHaveBeenCalledWith("https://app.insightfull.ai", "env_test");
+    expect(mockedFetchConfig).toHaveBeenCalledWith("https://insightfull.ai", "env_test");
 
     sdk.track("checkout_completed", { total: 42 });
 
     const iframe = document.querySelector<HTMLIFrameElement>("#insightfull-study-1 iframe");
     expect(iframe).not.toBeNull();
-    expect(iframe?.src).toContain("https://app.insightfull.ai/study/survey-alpha?ctx=");
+    expect(iframe?.src).toContain("https://insightfull.ai/study/survey-alpha?ctx=");
 
     const encodedContext = new URL(iframe?.src ?? "https://example.invalid").searchParams.get(
       "ctx",

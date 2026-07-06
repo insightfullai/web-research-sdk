@@ -4,7 +4,7 @@
 
 /** Options passed to InsightfullSDK.init() or the constructor. */
 export interface InsightfullInitOptions {
-  /** API base URL. Defaults to "https://app.insightfull.ai". */
+  /** API base URL. Defaults to "https://insightfull.ai". */
   apiBase?: string;
   /** Whether to auto-track pageviews. Defaults to true. */
   autoTrack?: boolean;

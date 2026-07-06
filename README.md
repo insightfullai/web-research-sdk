@@ -44,7 +44,7 @@ yarn add @insightfull/web-research-sdk
 
 ### 2. Get your clientId
 
-In your [Insightfull dashboard](https://app.insightfull.ai) → **Settings → SDK**, create an environment and copy the **Client ID** (looks like `env_abc123...`).
+In your [Insightfull dashboard](https://insightfull.ai) → **Settings → SDK**, create an environment and copy the **Client ID** (looks like `env_abc123...`).
 
 ### 3. Initialize and track
 
@@ -130,7 +130,7 @@ For linked validation against a host app, see the [local integration runbook](do
 ## Resources
 
 - **[insightfull.ai](https://insightfull.ai)** — product overview.
-- **[app.insightfull.ai](https://app.insightfull.ai)** — dashboard, sign up, get your clientId.
+- **[insightfull.ai](https://insightfull.ai)** — dashboard, sign up, get your clientId.
 - **[npm: @insightfull/web-research-sdk](https://www.npmjs.com/package/@insightfull/web-research-sdk)** — core package.
 - **[npm: @insightfull/web-research-sdk-react](https://www.npmjs.com/package/@insightfull/web-research-sdk-react)** — React package.
 - **[GitHub Issues](https://github.com/insightfullai/web-research-sdk/issues)** — bug reports, feature requests, support.

@@ -391,9 +391,9 @@ describe("iframe edge cases", () => {
     const study = makeStudy({ id: 1 });
     const context = makeContext();
 
-    renderStudy("https://app.insightfull.ai", study, context);
-    renderStudy("https://app.insightfull.ai", study, context);
-    renderStudy("https://app.insightfull.ai", study, context);
+    renderStudy("https://insightfull.ai", study, context);
+    renderStudy("https://insightfull.ai", study, context);
+    renderStudy("https://insightfull.ai", study, context);
 
     const elements = document.querySelectorAll("#insightfull-study-1");
     expect(elements.length).toBe(1);
@@ -403,13 +403,13 @@ describe("iframe edge cases", () => {
     const study = makeStudy({ id: 5 });
     const context = makeContext();
 
-    renderStudy("https://app.insightfull.ai", study, context);
+    renderStudy("https://insightfull.ai", study, context);
     expect(document.getElementById("insightfull-study-5")).not.toBeNull();
 
     removeStudy(5);
     expect(document.getElementById("insightfull-study-5")).toBeNull();
 
-    renderStudy("https://app.insightfull.ai", study, context);
+    renderStudy("https://insightfull.ai", study, context);
     expect(document.getElementById("insightfull-study-5")).not.toBeNull();
   });
 
@@ -418,7 +418,7 @@ describe("iframe edge cases", () => {
     const study = makeStudy({ id: 1, title: longTitle });
     const context = makeContext();
 
-    const host = renderStudy("https://app.insightfull.ai", study, context);
+    const host = renderStudy("https://insightfull.ai", study, context);
     expect(host).toBeDefined();
 
     const iframe = host.querySelector("iframe");
@@ -596,7 +596,7 @@ describe("Config fetcher edge cases", () => {
       json: async () => ({ result: { data: emptyConfig } }),
     } as Response);
 
-    const result = await fetchConfig("https://app.insightfull.ai", "env_abc");
+    const result = await fetchConfig("https://insightfull.ai", "env_abc");
 
     expect(result).toEqual(emptyConfig);
     expect(result?.studies).toEqual([]);
@@ -644,7 +644,7 @@ describe("Config fetcher edge cases", () => {
       json: async () => ({ result: { data: pausedConfig } }),
     } as Response);
 
-    const result = await fetchConfig("https://app.insightfull.ai", "env_abc");
+    const result = await fetchConfig("https://insightfull.ai", "env_abc");
 
     expect(result).toEqual(pausedConfig);
 
@@ -673,7 +673,7 @@ describe("Config fetcher edge cases", () => {
       json: async () => rawConfig,
     } as Response);
 
-    const result = await fetchConfig("https://app.insightfull.ai", "env_abc");
+    const result = await fetchConfig("https://insightfull.ai", "env_abc");
 
     expect(result).toEqual(rawConfig);
   });
@@ -685,7 +685,7 @@ describe("Config fetcher edge cases", () => {
       json: async () => null,
     } as Response);
 
-    const result = await fetchConfig("https://app.insightfull.ai", "env_abc");
+    const result = await fetchConfig("https://insightfull.ai", "env_abc");
 
     // Should return null (the data field is null)
     expect(result).toBeNull();
@@ -694,7 +694,7 @@ describe("Config fetcher edge cases", () => {
   it("network error on all retries → returns null gracefully", async () => {
     vi.spyOn(globalThis, "fetch").mockRejectedValue(new TypeError("Failed to fetch"));
 
-    const result = await fetchConfig("https://app.insightfull.ai", "env_abc");
+    const result = await fetchConfig("https://insightfull.ai", "env_abc");
 
     expect(result).toBeNull();
   });
@@ -713,7 +713,7 @@ describe("Config fetcher edge cases", () => {
         json: async () => ({ result: { data: config } }),
       } as Response);
 
-    const result = await fetchConfig("https://app.insightfull.ai", "env_abc");
+    const result = await fetchConfig("https://insightfull.ai", "env_abc");
 
     expect(result).toEqual(config);
   });
@@ -732,7 +732,7 @@ describe("Config fetcher edge cases", () => {
       }),
     } as Response);
 
-    await fetchConfig("https://app.insightfull.ai", "client-xyz");
+    await fetchConfig("https://insightfull.ai", "client-xyz");
 
     const calledUrl = fetchMock.mock.calls[0]![0] as string;
     expect(calledUrl).toContain("/trpc/sdk.getSdkConfig?");
@@ -746,7 +746,7 @@ describe("Config fetcher edge cases", () => {
       json: async () => ({}),
     } as Response);
 
-    const result = await fetchConfig("https://app.insightfull.ai", "env_abc");
+    const result = await fetchConfig("https://insightfull.ai", "env_abc");
 
     expect(result).toBeNull();
   });

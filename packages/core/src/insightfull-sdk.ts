@@ -84,7 +84,7 @@ export class InsightfullSDK {
 
   constructor(options: InsightfullInitOptions) {
     this.clientId = options.clientId;
-    this.apiBase = options.apiBase ?? "https://app.insightfull.ai";
+    this.apiBase = options.apiBase ?? "https://insightfull.ai";
     this.visitorId = this.getOrCreateVisitorId();
 
     this.eventQueue = new EventQueue({
