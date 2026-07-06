@@ -40,6 +40,18 @@ describe("fetchConfig", () => {
     expect(result).toEqual(mockConfig);
   });
 
+  it("returns parsed config from a SuperJSON tRPC envelope", async () => {
+    vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
+      ok: true,
+      status: 200,
+      json: async () => ({ result: { data: { json: mockConfig } } }),
+    } as Response);
+
+    const result = await fetchConfig("https://app.insightfull.ai", "env_abc");
+
+    expect(result).toEqual(mockConfig);
+  });
+
   it("returns null for client errors (4xx)", async () => {
     vi.spyOn(globalThis, "fetch").mockResolvedValueOnce({
       ok: false,
@@ -95,6 +107,7 @@ describe("fetchConfig", () => {
     await fetchConfig("https://app.insightfull.ai", "env_abc");
 
     const calledUrl = fetchMock.mock.calls[0]![0] as string;
+    expect(calledUrl).toContain("https://app.insightfull.ai/trpc/sdk.getSdkConfig?");
     const queryString = calledUrl.split("?")[1];
     const searchParams = new URLSearchParams(queryString);
     const inputStr = searchParams.get("input");

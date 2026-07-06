@@ -60,6 +60,7 @@ function makeContext(overrides: Partial<SdkContext> = {}): SdkContext {
     customId: {},
     customAttributes: {},
     sdkEnvironmentId: "env_abc",
+    sdkVersion: "1.0.0",
     source: "web_sdk",
     triggerEvent: "test_event",
     ...overrides,
@@ -734,7 +735,7 @@ describe("Config fetcher edge cases", () => {
     await fetchConfig("https://app.insightfull.ai", "client-xyz");
 
     const calledUrl = fetchMock.mock.calls[0]![0] as string;
-    expect(calledUrl).toContain("/trpc/sdk.getConfig?");
+    expect(calledUrl).toContain("/trpc/sdk.getSdkConfig?");
     expect(calledUrl).toContain("client-xyz");
   });
 

@@ -31,6 +31,7 @@ function makeContext(overrides: Partial<SdkContext> = {}): SdkContext {
     customId: {},
     customAttributes: {},
     sdkEnvironmentId: "env_abc",
+    sdkVersion: "1.0.0",
     source: "web_sdk",
     triggerEvent: "test_event",
     ...overrides,

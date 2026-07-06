@@ -1,31 +1,77 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import { fetchConfig } from "../config-fetcher/config-fetcher.js";
 import { InsightfullSDK } from "../insightfull-sdk.js";
+import type { SdkConfig, StudyContent } from "../types/index.js";
 
 // Mock config fetcher to return a test config
-vi.mock("../lib/config-fetcher/config-fetcher.js", () => ({
-  fetchConfig: vi.fn().mockResolvedValue({
-    environment: {
-      allowedDomains: null,
-      clientId: "env_test",
-      id: 1,
-      isActive: true,
-      name: "Test Environment",
-      organizationId: 1,
-    },
-    globalSettings: { cooldownDays: 14, sessionTimeoutMs: 1_800_000 },
-    studies: [],
-  }),
+vi.mock("../config-fetcher/config-fetcher.js", () => ({
+  fetchConfig: vi.fn(),
 }));
 
 // Mock telemetry sender
-vi.mock("../lib/telemetry-sender/telemetry-sender.js", () => ({
+vi.mock("../telemetry-sender/telemetry-sender.js", () => ({
   sendTelemetry: vi.fn().mockResolvedValue({ ingested: 1 }),
 }));
 
+const mockedFetchConfig = vi.mocked(fetchConfig);
+
+function makeStudy(overrides: Partial<StudyContent> = {}): StudyContent {
+  return {
+    id: 1,
+    shareUrl: "test-study",
+    title: "Test Study",
+    type: "interview",
+    experienceMode: "interview",
+    sections: [],
+    branding: {
+      logoUrl: null,
+      organizationName: "Test",
+      theme: null,
+    },
+    triggers: [
+      {
+        eventName: "checkout_completed",
+        filters: [],
+        isActive: true,
+        priority: 0,
+      },
+    ],
+    ...overrides,
+  };
+}
+
+function makeConfig(studies: StudyContent[] = []): SdkConfig {
+  return {
+    environment: {
+      allowedDomains: null,
+      clientId: "env_test",
+      isActive: true,
+      name: "Test Environment",
+    },
+    globalSettings: { cooldownDays: 14, sessionTimeoutMs: 1_800_000 },
+    studies,
+  };
+}
+
+async function waitForSdkConfig(): Promise<void> {
+  await vi.waitFor(() => {
+    expect(mockedFetchConfig).toHaveBeenCalled();
+  });
+
+  const fetchResult = mockedFetchConfig.mock.results[0];
+  if (fetchResult?.type === "return") {
+    await fetchResult.value;
+  }
+
+  await Promise.resolve();
+}
+
 describe("InsightfullSDK", () => {
   beforeEach(() => {
+    document.body.innerHTML = "";
     localStorage.clear();
     vi.clearAllMocks();
+    mockedFetchConfig.mockResolvedValue(makeConfig());
   });
 
   it("init creates an instance", () => {
@@ -118,6 +164,60 @@ describe("InsightfullSDK", () => {
       autoTrack: false,
     });
     expect(sdk.baseApiUrl).toBe("https://custom.example.com");
+    void sdk.destroy();
+  });
+
+  it("uses default fixed iframe rendering when a trigger matches", async () => {
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([makeStudy({ shareUrl: "survey-alpha" })]));
+    const sdk = InsightfullSDK.init({ clientId: "env_test", autoTrack: false });
+
+    await waitForSdkConfig();
+    expect(mockedFetchConfig).toHaveBeenCalledWith("https://app.insightfull.ai", "env_test");
+
+    sdk.track("checkout_completed", { total: 42 });
+
+    const iframe = document.querySelector<HTMLIFrameElement>("#insightfull-study-1 iframe");
+    expect(iframe).not.toBeNull();
+    expect(iframe?.src).toContain("https://app.insightfull.ai/study/survey-alpha?ctx=");
+
+    const encodedContext = new URL(iframe?.src ?? "https://example.invalid").searchParams.get(
+      "ctx",
+    );
+    expect(encodedContext).not.toBeNull();
+    expect(JSON.parse(atob(encodedContext ?? ""))).toMatchObject({
+      sdkEnvironmentId: "env_test",
+      sdkVersion: "1.0.0",
+      source: "web_sdk",
+      triggerEvent: "checkout_completed",
+    });
+
+    void sdk.destroy();
+  });
+
+  it("replays trigger evaluations that occur before config loads", async () => {
+    let resolveConfig: (config: SdkConfig) => void;
+    mockedFetchConfig.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveConfig = resolve;
+      }),
+    );
+    const sdk = InsightfullSDK.init({ clientId: "env_test", autoTrack: false });
+
+    sdk.track("checkout_completed");
+    expect(document.querySelector("iframe")).toBeNull();
+
+    resolveConfig!(makeConfig([makeStudy()]));
+    await waitForSdkConfig();
+
+    const iframe = document.querySelector<HTMLIFrameElement>("#insightfull-study-1 iframe");
+    expect(iframe).not.toBeNull();
+    const encodedContext = new URL(iframe?.src ?? "https://example.invalid").searchParams.get(
+      "ctx",
+    );
+    expect(JSON.parse(atob(encodedContext ?? ""))).toMatchObject({
+      triggerEvent: "checkout_completed",
+    });
+
     void sdk.destroy();
   });
 });
