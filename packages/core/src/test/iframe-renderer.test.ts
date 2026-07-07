@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   buildContextPayload,
+  buildStudyIframeUrl,
+  buildStudyRenderPayload,
   removeStudy,
   renderStudy,
 } from "../iframe-renderer/iframe-renderer.js";
@@ -68,6 +70,29 @@ describe("iframe renderer", () => {
     const iframe = host?.querySelector("iframe");
     expect(iframe).not.toBeNull();
     expect(iframe?.src).toContain("https://insightfull.ai/study/my-study?ctx=");
+  });
+
+  it("builds one iframe URL source of truth for default and custom renderers", () => {
+    const study = makeStudy({ shareUrl: null, id: 123 });
+    const context = makeContext({
+      customAttributes: { plan: "pro" },
+      customId: { account: "acct-123" },
+      triggerEvent: "purchase",
+      userId: "user-123",
+    });
+
+    const iframeUrl = buildStudyIframeUrl("https://insightfull.ai", study, context);
+    const renderPayload = buildStudyRenderPayload("https://insightfull.ai", study, context);
+
+    expect(renderPayload.iframeUrl).toBe(iframeUrl);
+    expect(renderPayload.study).toBe(study);
+    expect(renderPayload.context).toEqual(context);
+
+    const url = new URL(iframeUrl);
+    const encodedContext = url.searchParams.get("ctx");
+    expect(url.pathname).toBe("/study/id/123");
+    expect(encodedContext).not.toBeNull();
+    expect(JSON.parse(atob(encodedContext ?? ""))).toEqual(context);
   });
 
   it("iframe has correct allow attributes", () => {

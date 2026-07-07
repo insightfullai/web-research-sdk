@@ -11,11 +11,12 @@ import { AutoTracker } from "./auto-tracker/auto-tracker.js";
 import { fetchConfig } from "./config-fetcher/config-fetcher.js";
 import { evaluateTriggers, setCooldown } from "./evaluation-engine/evaluation-engine.js";
 import { EventQueue } from "./event-queue/event-queue.js";
-import { renderStudy } from "./iframe-renderer/iframe-renderer.js";
+import { buildStudyRenderPayload, renderStudy } from "./iframe-renderer/iframe-renderer.js";
 import { sendTelemetry } from "./telemetry-sender/telemetry-sender.js";
 import type {
   GlobalSettings,
   InsightfullInitOptions,
+  InsightfullStudyRenderer,
   SdkConfig,
   SdkContext,
   SdkEvent,
@@ -40,6 +41,7 @@ export class InsightfullSDK {
   private readonly pendingTriggerEvaluations: string[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private autoTracker: AutoTracker | null = null;
+  private readonly studyRenderer: InsightfullStudyRenderer | undefined;
   private destroyed = false;
 
   /** The configured API base URL. */
@@ -85,6 +87,7 @@ export class InsightfullSDK {
   constructor(options: InsightfullInitOptions) {
     this.clientId = options.clientId;
     this.apiBase = options.apiBase ?? "https://insightfull.ai";
+    this.studyRenderer = options.renderStudy;
     this.visitorId = this.getOrCreateVisitorId();
 
     this.eventQueue = new EventQueue({
@@ -331,6 +334,11 @@ export class InsightfullSDK {
       source: "web_sdk",
       triggerEvent,
     };
+
+    if (this.studyRenderer) {
+      this.studyRenderer(buildStudyRenderPayload(this.apiBase, study, context));
+      return;
+    }
 
     renderStudy(this.apiBase, study, context);
   }

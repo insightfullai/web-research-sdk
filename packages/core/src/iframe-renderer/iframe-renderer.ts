@@ -2,7 +2,7 @@
  * iframe renderer — creates a positioned div with an iframe to display a study.
  */
 
-import type { SdkContext, StudyContent } from "../types/index.js";
+import type { InsightfullStudyRenderPayload, SdkContext, StudyContent } from "../types/index.js";
 
 const IFRAME_ID_PREFIX = "insightfull-study-";
 
@@ -23,6 +23,35 @@ export function buildContextPayload(context: SdkContext): string {
 }
 
 /**
+ * Build the iframe URL for a study using the same context encoding as the default renderer.
+ */
+export function buildStudyIframeUrl(
+  apiBase: string,
+  study: StudyContent,
+  context: SdkContext,
+): string {
+  const payload = buildContextPayload(context);
+  const shareSlug = study.shareUrl ?? `id/${study.id}`;
+  return `${apiBase}/study/${shareSlug}?ctx=${encodeURIComponent(payload)}`;
+}
+
+/**
+ * Build the typed payload shared by the default renderer and host-provided custom renderers.
+ */
+export function buildStudyRenderPayload(
+  apiBase: string,
+  study: StudyContent,
+  context: SdkContext,
+): InsightfullStudyRenderPayload {
+  return {
+    iframeUrl: buildStudyIframeUrl(apiBase, study, context),
+    study,
+    context,
+    removeDefaultStudy: () => removeStudy(study.id),
+  };
+}
+
+/**
  * Render a study in a positioned iframe overlay.
  * Returns the host div element.
  */
@@ -31,6 +60,8 @@ export function renderStudy(
   study: StudyContent,
   context: SdkContext,
 ): HTMLDivElement {
+  const renderPayload = buildStudyRenderPayload(apiBase, study, context);
+
   // Remove existing iframe if present
   removeStudy(study.id);
 
@@ -50,14 +81,9 @@ export function renderStudy(
     "overflow: hidden",
   ].join("; ");
 
-  // Build iframe URL with context payload
-  const payload = buildContextPayload(context);
-  const shareSlug = study.shareUrl ?? `id/${study.id}`;
-  const iframeSrc = `${apiBase}/study/${shareSlug}?ctx=${encodeURIComponent(payload)}`;
-
   // Create iframe
   const iframe = document.createElement("iframe");
-  iframe.src = iframeSrc;
+  iframe.src = renderPayload.iframeUrl;
   iframe.style.cssText = "width:100%;height:100%;border:none;border-radius:12px;";
   iframe.setAttribute("allow", "clipboard-write");
   iframe.setAttribute("title", study.title ?? `Study ${study.id}`);

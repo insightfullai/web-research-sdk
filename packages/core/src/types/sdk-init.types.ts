@@ -2,6 +2,18 @@
  * SDK initialization options.
  */
 
+import type { StudyContent } from "./sdk-config.types.js";
+import type { SdkContext } from "./sdk-context.types.js";
+
+export interface InsightfullStudyRenderPayload {
+  iframeUrl: string;
+  study: StudyContent;
+  context: SdkContext;
+  removeDefaultStudy: () => void;
+}
+
+export type InsightfullStudyRenderer = (payload: InsightfullStudyRenderPayload) => void;
+
 /** Options passed to InsightfullSDK.init() or the constructor. */
 export interface InsightfullInitOptions {
   /** API base URL. Defaults to "https://insightfull.ai". */
@@ -10,4 +22,6 @@ export interface InsightfullInitOptions {
   autoTrack?: boolean;
   /** The SDK environment client ID (public key). */
   clientId: string;
+  /** Optional custom renderer. When provided, the SDK will not create the default iframe. */
+  renderStudy?: InsightfullStudyRenderer;
 }

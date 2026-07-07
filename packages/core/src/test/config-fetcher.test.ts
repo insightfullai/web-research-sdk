@@ -107,7 +107,7 @@ describe("fetchConfig", () => {
     await fetchConfig("https://insightfull.ai", "env_abc");
 
     const calledUrl = fetchMock.mock.calls[0]![0] as string;
-    expect(calledUrl).toContain("https://insightfull.ai/trpc/sdk.getSdkConfig?");
+    expect(calledUrl).toContain("https://insightfull.ai/trpc/sdk.getConfig?");
     const queryString = calledUrl.split("?")[1];
     const searchParams = new URLSearchParams(queryString);
     const inputStr = searchParams.get("input");

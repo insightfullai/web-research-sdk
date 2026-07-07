@@ -3,25 +3,31 @@
  */
 import { cleanup, render, renderHook } from "@testing-library/react";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import type { InsightfullStudyRenderer } from "@insightfull/web-research-sdk";
 import { InsightfullProvider, useInsightfull } from "./provider.js";
+
+const sdkMocks = vi.hoisted(() => {
+  const instance = {
+    identify: vi.fn<(userId: string, traits?: Record<string, unknown>) => void>(),
+    track: vi.fn<(eventName: string, payload?: Record<string, unknown>) => void>(),
+    destroy: vi.fn<() => Promise<void>>(),
+    setAttribute: vi.fn<(key: string, value: unknown) => void>(),
+    setCustomId: vi.fn<(key: string, value: string) => void>(),
+  };
+
+  return {
+    init: vi.fn(() => instance),
+    instance,
+  };
+});
 
 vi.mock("@insightfull/web-research-sdk", () => ({
   InsightfullSDK: {
-    init: vi.fn(() => ({
-      identify: vi.fn(),
-      track: vi.fn(),
-      destroy: vi.fn(),
-      setAttribute: vi.fn(),
-      setCustomId: vi.fn(),
-    })),
+    init: sdkMocks.init,
   },
 }));
 
-const { InsightfullSDK } = await vi.importMock<typeof import("@insightfull/web-research-sdk")>(
-  "@insightfull/web-research-sdk",
-);
-
-const mockedInit = vi.mocked(InsightfullSDK.init);
+const mockedInit = sdkMocks.init;
 
 function Wrapper({ children }: { children: React.ReactNode }) {
   return <InsightfullProvider clientId="env_test">{children}</InsightfullProvider>;
@@ -60,6 +66,20 @@ describe("InsightfullProvider", () => {
 
     await vi.waitFor(() => {
       expect(mockedInit).toHaveBeenCalledWith(expect.objectContaining({ autoTrack: false }));
+    });
+  });
+
+  it("passes a custom study renderer option through to SDK", async () => {
+    const renderStudy = vi.fn<InsightfullStudyRenderer>();
+
+    render(
+      <InsightfullProvider clientId="env_test" options={{ renderStudy }}>
+        {" "}
+      </InsightfullProvider>,
+    );
+
+    await vi.waitFor(() => {
+      expect(mockedInit).toHaveBeenCalledWith(expect.objectContaining({ renderStudy }));
     });
   });
 
@@ -103,8 +123,7 @@ describe("useInsightfull", () => {
       expect(result.current.isReady).toBe(true);
     });
 
-    const mockTrack = vi.mocked(result.current.sdk!.track);
     result.current.sdk!.track("test_event");
-    expect(mockTrack).toHaveBeenCalledWith("test_event");
+    expect(sdkMocks.instance.track).toHaveBeenCalledWith("test_event");
   });
 });

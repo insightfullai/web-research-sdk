@@ -17,6 +17,8 @@ export type {
   GlobalSettings,
   IdentifyEvent,
   InsightfullInitOptions,
+  InsightfullStudyRenderer,
+  InsightfullStudyRenderPayload,
   PageviewEvent,
   SdkConfig,
   SdkContext,
