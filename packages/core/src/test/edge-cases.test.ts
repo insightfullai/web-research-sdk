@@ -735,7 +735,7 @@ describe("Config fetcher edge cases", () => {
     await fetchConfig("https://insightfull.ai", "client-xyz");
 
     const calledUrl = fetchMock.mock.calls[0]![0] as string;
-    expect(calledUrl).toContain("/trpc/sdk.getSdkConfig?");
+    expect(calledUrl).toContain("/trpc/sdk.getConfig?");
     expect(calledUrl).toContain("client-xyz");
   });
 

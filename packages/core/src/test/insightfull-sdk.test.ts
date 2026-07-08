@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import { fetchConfig } from "../config-fetcher/config-fetcher.js";
 import { InsightfullSDK } from "../insightfull-sdk.js";
-import type { SdkConfig, StudyContent } from "../types/index.js";
+import type { InsightfullStudyRenderer, SdkConfig, StudyContent } from "../types/index.js";
 
 // Mock config fetcher to return a test config
 vi.mock("../config-fetcher/config-fetcher.js", () => ({
@@ -194,6 +194,65 @@ describe("InsightfullSDK", () => {
     void sdk.destroy();
   });
 
+  it("calls a custom renderer with iframeUrl, study, and context when a trigger matches", async () => {
+    const study = makeStudy({
+      id: 7,
+      shareUrl: "custom-survey",
+      title: "Custom Survey",
+    });
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([study]));
+    const renderStudy = vi.fn<InsightfullStudyRenderer>();
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      autoTrack: false,
+      renderStudy,
+    });
+    sdk.identify("user-123", { plan: "pro" });
+    sdk.setCustomId("account", "acct-123");
+
+    await waitForSdkConfig();
+
+    sdk.track("checkout_completed");
+
+    expect(renderStudy).toHaveBeenCalledTimes(1);
+    const [payload] = renderStudy.mock.calls[0] ?? [];
+    expect(payload).toBeDefined();
+    expect(payload?.study).toBe(study);
+    expect(payload?.iframeUrl).toContain("https://insightfull.ai/study/custom-survey?ctx=");
+    expect(payload?.context).toEqual({
+      visitorId: sdk.currentVisitorId,
+      userId: "user-123",
+      customId: { account: "acct-123" },
+      customAttributes: { plan: "pro" },
+      sdkEnvironmentId: "env_test",
+      sdkVersion: "1.0.0",
+      source: "web_sdk",
+      triggerEvent: "checkout_completed",
+    });
+
+    void sdk.destroy();
+  });
+
+  it("does not create the default iframe when a custom renderer is provided", async () => {
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([makeStudy()]));
+    const renderStudy = vi.fn<InsightfullStudyRenderer>();
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      autoTrack: false,
+      renderStudy,
+    });
+
+    await waitForSdkConfig();
+
+    sdk.track("checkout_completed");
+
+    expect(renderStudy).toHaveBeenCalledTimes(1);
+    expect(document.getElementById("insightfull-study-1")).toBeNull();
+    expect(document.querySelector("iframe")).toBeNull();
+
+    void sdk.destroy();
+  });
+
   it("replays trigger evaluations that occur before config loads", async () => {
     let resolveConfig: (config: SdkConfig) => void;
     mockedFetchConfig.mockReturnValueOnce(
@@ -217,6 +276,32 @@ describe("InsightfullSDK", () => {
     expect(JSON.parse(atob(encodedContext ?? ""))).toMatchObject({
       triggerEvent: "checkout_completed",
     });
+
+    void sdk.destroy();
+  });
+
+  it("replays pre-config trigger evaluations through a custom renderer", async () => {
+    let resolveConfig: (config: SdkConfig) => void;
+    mockedFetchConfig.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveConfig = resolve;
+      }),
+    );
+    const renderStudy = vi.fn<InsightfullStudyRenderer>();
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      autoTrack: false,
+      renderStudy,
+    });
+
+    sdk.track("checkout_completed");
+    expect(renderStudy).not.toHaveBeenCalled();
+
+    resolveConfig!(makeConfig([makeStudy()]));
+    await waitForSdkConfig();
+
+    expect(renderStudy).toHaveBeenCalledTimes(1);
+    expect(renderStudy.mock.calls[0]?.[0].context.triggerEvent).toBe("checkout_completed");
 
     void sdk.destroy();
   });

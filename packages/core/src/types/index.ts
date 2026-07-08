@@ -17,4 +17,8 @@ export type {
   SdkEventType,
   TrackEvent,
 } from "./sdk-events.types.js";
-export type { InsightfullInitOptions } from "./sdk-init.types.js";
+export type {
+  InsightfullInitOptions,
+  InsightfullStudyRenderer,
+  InsightfullStudyRenderPayload,
+} from "./sdk-init.types.js";

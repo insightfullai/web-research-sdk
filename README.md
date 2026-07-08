@@ -103,6 +103,10 @@ More in the [installation guide](docs/quickstart/installation.md) and [React int
   - [`react-integration.md`](docs/quickstart/react-integration.md) — provider, hook, SSR.
   - [`local-integration-runbook.md`](docs/quickstart/local-integration-runbook.md) — linking, packed validation, smoke tests.
 
+## Recipes
+
+- [`next-app-survey`](packages/next-app-survey) — private Next.js checkout recipe that triggers `checkout_completed` and renders a real Insightfull survey iframe in a shadcn/ui Dialog.
+
 ## Development
 
 This is a yarn workspaces monorepo built on [vite-plus](https://www.npmjs.com/package/vite-plus).
@@ -129,8 +133,7 @@ For linked validation against a host app, see the [local integration runbook](do
 
 ## Resources
 
-- **[insightfull.ai](https://insightfull.ai)** — product overview.
-- **[insightfull.ai](https://insightfull.ai)** — dashboard, sign up, get your clientId.
+- **[insightfull.ai](https://insightfull.ai)** — product overview, dashboard, sign up, get your clientId.
 - **[npm: @insightfull/web-research-sdk](https://www.npmjs.com/package/@insightfull/web-research-sdk)** — core package.
 - **[npm: @insightfull/web-research-sdk-react](https://www.npmjs.com/package/@insightfull/web-research-sdk-react)** — React package.
 - **[GitHub Issues](https://github.com/insightfullai/web-research-sdk/issues)** — bug reports, feature requests, support.
