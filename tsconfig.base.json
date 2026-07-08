@@ -17,7 +17,8 @@
     "types": ["node"],
     "paths": {
       "@insightfull/web-research-sdk": ["./packages/core/src/index.ts"],
-      "@insightfull/web-research-sdk-react": ["./packages/react/src/index.ts"]
+      "@insightfull/web-research-sdk-react": ["./packages/react/src/index.ts"],
+      "@insightfull/web-research-sdk-recorder": ["./packages/recorder/src/index.ts"]
     }
   }
 }
