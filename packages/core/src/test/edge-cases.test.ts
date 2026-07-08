@@ -425,11 +425,11 @@ describe("iframe edge cases", () => {
     expect(iframe?.getAttribute("title")).toBe(longTitle);
 
     // Verify context payload is still valid
-    const src = iframe?.src ?? "";
-    const ctxParam = src.split("ctx=")[1]!;
+    const src = iframe?.src ?? "https://example.invalid";
+    const ctxParam = new URL(src).searchParams.get("ctx");
     expect(ctxParam).toBeDefined();
 
-    const decoded = JSON.parse(atob(ctxParam));
+    const decoded = JSON.parse(atob(ctxParam ?? ""));
     expect(decoded.visitorId).toBe("visitor-123");
   });
 

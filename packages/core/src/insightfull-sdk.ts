@@ -11,8 +11,19 @@ import { AutoTracker } from "./auto-tracker/auto-tracker.js";
 import { fetchConfig } from "./config-fetcher/config-fetcher.js";
 import { evaluateTriggers, setCooldown } from "./evaluation-engine/evaluation-engine.js";
 import { EventQueue } from "./event-queue/event-queue.js";
-import { buildStudyRenderPayload, renderStudy } from "./iframe-renderer/iframe-renderer.js";
+import { InsightfullIframeBridge } from "./iframe-bridge/iframe-bridge.js";
+import {
+  buildStudyRenderPayload,
+  removeStudy,
+  renderStudy,
+} from "./iframe-renderer/iframe-renderer.js";
 import { sendTelemetry } from "./telemetry-sender/telemetry-sender.js";
+import type {
+  InsightfullIframeBridgeState,
+  InsightfullIframeMessage,
+  InsightfullRecorderSafeAttributeValue,
+  InsightfullRecorderSafeContext,
+} from "./iframe-bridge/iframe-bridge.js";
 import type {
   GlobalSettings,
   InsightfullInitOptions,
@@ -41,7 +52,9 @@ export class InsightfullSDK {
   private readonly pendingTriggerEvaluations: string[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private autoTracker: AutoTracker | null = null;
+  private readonly iframeBridge = new InsightfullIframeBridge();
   private readonly studyRenderer: InsightfullStudyRenderer | undefined;
+  private activeStudyId: number | null = null;
   private destroyed = false;
 
   /** The configured API base URL. */
@@ -72,6 +85,35 @@ export class InsightfullSDK {
   /** Number of events currently in the queue. */
   get queueSize(): number {
     return this.eventQueue.size();
+  }
+
+  /** Current iframe bridge state for recorder integrations. */
+  getIframeBridgeState(): InsightfullIframeBridgeState {
+    return this.iframeBridge.getState();
+  }
+
+  /** Snapshot of recorder-safe SDK context. Excludes nested/custom object attributes. */
+  getRecorderContext(): InsightfullRecorderSafeContext {
+    const url = typeof window !== "undefined" ? window.location.href : "";
+    const path = typeof window !== "undefined" ? window.location.pathname : "";
+    return {
+      activeStudyId: this.activeStudyId,
+      customAttributes: this.getRecorderSafeAttributes(),
+      customId: { ...this.customId },
+      path,
+      sdkEnvironmentId: this.clientId,
+      url,
+      userId: this._userId,
+      visitorId: this.visitorId,
+    };
+  }
+
+  /** Send a bridge message to the active study iframe. Safe no-op when no iframe is active. */
+  sendIframeBridgeMessage(message: InsightfullIframeMessage): boolean {
+    if (this.destroyed) {
+      return false;
+    }
+    return this.iframeBridge.send(message);
   }
 
   /** Whether the periodic flush timer is active. */
@@ -186,6 +228,8 @@ export class InsightfullSDK {
       this.autoTracker.stop();
       this.autoTracker = null;
     }
+    this.activeStudyId = null;
+    this.iframeBridge.destroy();
 
     // Final flush — await to prevent unhandled promise rejections and data loss
     await this.eventQueue.flush();
@@ -288,6 +332,27 @@ export class InsightfullSDK {
     this.eventQueue.push(event);
   }
 
+  private getRecorderSafeAttributes(): Record<string, InsightfullRecorderSafeAttributeValue> {
+    const safeAttributes: Record<string, InsightfullRecorderSafeAttributeValue> = {};
+    for (const [key, value] of Object.entries(this.attributes)) {
+      if (
+        value === null ||
+        typeof value === "string" ||
+        typeof value === "number" ||
+        typeof value === "boolean"
+      ) {
+        safeAttributes[key] = value;
+      }
+    }
+    return safeAttributes;
+  }
+
+  private clearActiveStudy(studyId: number): void {
+    if (this.activeStudyId === studyId) {
+      this.activeStudyId = null;
+    }
+  }
+
   /**
    * Send a batch of telemetry events to the backend.
    */
@@ -324,11 +389,14 @@ export class InsightfullSDK {
    * Show a study in a positioned iframe.
    */
   private showStudy(study: StudyContent, triggerEvent: string): void {
+    const iframeBridgeNonce = this.generateId();
+    this.activeStudyId = study.id;
     const context: SdkContext = {
       visitorId: this.visitorId,
       userId: this._userId,
       customId: { ...this.customId },
       customAttributes: { ...this.attributes },
+      iframeBridge: { nonce: iframeBridgeNonce, version: 1 },
       sdkEnvironmentId: this.clientId,
       sdkVersion: SDK_VERSION,
       source: "web_sdk",
@@ -336,10 +404,36 @@ export class InsightfullSDK {
     };
 
     if (this.studyRenderer) {
-      this.studyRenderer(buildStudyRenderPayload(this.apiBase, study, context));
+      this.iframeBridge.unregisterIframe();
+      this.studyRenderer(
+        buildStudyRenderPayload(this.apiBase, study, context, {
+          removeDefaultStudy: () => {
+            removeStudy(study.id);
+          },
+          registerIframeBridge: ({ iframe, iframeUrl, nonce, studyId }) => {
+            if (!nonce) {
+              return () => undefined;
+            }
+            this.iframeBridge.registerIframe({ iframe, iframeUrl, nonce, studyId });
+            return () => {
+              this.clearActiveStudy(studyId);
+              this.iframeBridge.unregisterIframe(studyId);
+            };
+          },
+        }),
+      );
       return;
     }
 
-    renderStudy(this.apiBase, study, context);
+    this.iframeBridge.unregisterIframe();
+    renderStudy(this.apiBase, study, context, {
+      onBeforeRemoveExisting: () => this.iframeBridge.unregisterIframe(study.id),
+      onIframeCreated: ({ iframe, iframeUrl, nonce, studyId }) => {
+        if (!nonce) {
+          return;
+        }
+        this.iframeBridge.registerIframe({ iframe, iframeUrl, nonce, studyId });
+      },
+    });
   }
 }

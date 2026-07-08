@@ -9,6 +9,7 @@ export interface InsightfullStudyRenderPayload {
   iframeUrl: string;
   study: StudyContent;
   context: SdkContext;
+  registerIframeBridge: (iframe: HTMLIFrameElement) => () => void;
   removeDefaultStudy: () => void;
 }
 
