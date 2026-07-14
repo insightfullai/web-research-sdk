@@ -13,6 +13,7 @@
   "dependencies": {
     "@insightfull/web-research-sdk": "workspace:*",
     "@insightfull/web-research-sdk-react": "workspace:*",
+    "@insightfull/web-research-sdk-recorder": "workspace:*",
     "@radix-ui/react-dialog": "^1.1.15",
     "@radix-ui/react-separator": "^1.1.8",
     "@radix-ui/react-slot": "^1.2.4",

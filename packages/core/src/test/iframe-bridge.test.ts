@@ -1,6 +1,9 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import { InsightfullIframeBridge } from "../iframe-bridge/iframe-bridge.js";
-import type { InsightfullIframeMessage } from "../iframe-bridge/iframe-bridge.js";
+import type {
+  InsightfullDisplayStateCallback,
+  InsightfullIframeMessage,
+} from "../iframe-bridge/iframe-bridge.js";
 
 const IFRAME_URL = "https://iframe.example.com/study/alpha?ctx=abc";
 
@@ -113,7 +116,12 @@ describe("InsightfullIframeBridge", () => {
     const postMessage = vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => {});
     const message = makeSessionMessage("session-1");
 
-    bridge.registerIframe({ iframe, iframeUrl: IFRAME_URL, nonce: "nonce-123", studyId: 42 });
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
     bridge.send(message);
 
     dispatchReady(iframe);
@@ -127,7 +135,12 @@ describe("InsightfullIframeBridge", () => {
     const iframe = makeIframe();
     const postMessage = vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => {});
 
-    bridge.registerIframe({ iframe, iframeUrl: IFRAME_URL, nonce: "nonce-123", studyId: 42 });
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
     bridge.send(makeSessionMessage("session-1"));
     dispatchReady(iframe, { origin: "https://attacker.example.com" });
 
@@ -141,7 +154,12 @@ describe("InsightfullIframeBridge", () => {
     const otherIframe = makeIframe("https://iframe.example.com/other");
     const postMessage = vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => {});
 
-    bridge.registerIframe({ iframe, iframeUrl: IFRAME_URL, nonce: "nonce-123", studyId: 42 });
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
     bridge.send(makeSessionMessage("session-1"));
     dispatchReady(iframe, { source: otherIframe.contentWindow });
 
@@ -154,7 +172,12 @@ describe("InsightfullIframeBridge", () => {
     const iframe = makeIframe();
     const postMessage = vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => {});
 
-    bridge.registerIframe({ iframe, iframeUrl: IFRAME_URL, nonce: "nonce-123", studyId: 42 });
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
     bridge.send(makeSessionMessage("session-1"));
     dispatchReady(iframe, { studyId: 99 });
 
@@ -167,7 +190,12 @@ describe("InsightfullIframeBridge", () => {
     const iframe = makeIframe();
     const postMessage = vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => {});
 
-    bridge.registerIframe({ iframe, iframeUrl: IFRAME_URL, nonce: "nonce-123", studyId: 42 });
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
     bridge.send(makeSessionMessage("session-1"));
     dispatchReady(iframe, { nonce: "nonce-wrong" });
 
@@ -183,7 +211,12 @@ describe("InsightfullIframeBridge", () => {
     const second = makeLiveEventMessage("session-1", 2);
     const third = makeLiveEventMessage("session-1", 3);
 
-    bridge.registerIframe({ iframe, iframeUrl: IFRAME_URL, nonce: "nonce-123", studyId: 42 });
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
     bridge.send(first);
     bridge.send(second);
     bridge.send(third);
@@ -216,11 +249,20 @@ describe("InsightfullIframeBridge", () => {
     const postMessage = vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => {});
     const message = makeSessionMessage("session-1");
 
-    bridge.registerIframe({ iframe, iframeUrl: IFRAME_URL, nonce: "nonce-123", studyId: 42 });
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
     expect(bridge.send(message)).toBe(true);
 
     bridge.unregisterIframe(99);
-    expect(bridge.getState()).toMatchObject({ active: true, queueSize: 1, studyId: 42 });
+    expect(bridge.getState()).toMatchObject({
+      active: true,
+      queueSize: 1,
+      studyId: 42,
+    });
 
     bridge.unregisterIframe(42);
     expect(bridge.getState()).toEqual({
@@ -241,7 +283,12 @@ describe("InsightfullIframeBridge", () => {
     const iframe = makeIframe();
     const postMessage = vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => {});
 
-    bridge.registerIframe({ iframe, iframeUrl: IFRAME_URL, nonce: "nonce-123", studyId: 42 });
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
     expect(bridge.send(makeSessionMessage("session-1"))).toBe(true);
 
     bridge.destroy();
@@ -255,5 +302,114 @@ describe("InsightfullIframeBridge", () => {
       targetOrigin: null,
     });
     expect(postMessage).not.toHaveBeenCalled();
+  });
+
+  // ── Display state messages ────────────────────────────────────────
+
+  function dispatchDisplayState(
+    iframe: HTMLIFrameElement,
+    state: "expanded" | "minimized",
+    overrides: Partial<{
+      nonce: string;
+      origin: string;
+      source: MessageEventSource | null;
+      studyId: number;
+    }> = {},
+  ): void {
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "insightfull.iframe_display_state",
+          version: 1,
+          state,
+          studyId: overrides.studyId ?? 42,
+          nonce: overrides.nonce ?? "nonce-123",
+        },
+        origin: overrides.origin ?? "https://iframe.example.com",
+        source: overrides.source ?? iframe.contentWindow,
+      }),
+    );
+  }
+
+  it("invokes onDisplayStateChange when a valid display state message arrives", () => {
+    const callback: InsightfullDisplayStateCallback = vi.fn();
+    bridge = new InsightfullIframeBridge({ onDisplayStateChange: callback });
+    const iframe = makeIframe();
+
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
+    dispatchDisplayState(iframe, "minimized");
+
+    expect(callback).toHaveBeenCalledWith("minimized", 42);
+  });
+
+  it("ignores display state messages from the wrong origin", () => {
+    const callback: InsightfullDisplayStateCallback = vi.fn();
+    bridge = new InsightfullIframeBridge({ onDisplayStateChange: callback });
+    const iframe = makeIframe();
+
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
+    dispatchDisplayState(iframe, "minimized", {
+      origin: "https://attacker.example.com",
+    });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("ignores display state messages with the wrong nonce", () => {
+    const callback: InsightfullDisplayStateCallback = vi.fn();
+    bridge = new InsightfullIframeBridge({ onDisplayStateChange: callback });
+    const iframe = makeIframe();
+
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
+    dispatchDisplayState(iframe, "minimized", { nonce: "nonce-wrong" });
+
+    expect(callback).not.toHaveBeenCalled();
+  });
+
+  it("handles rapid state changes (minimize → expand → minimize)", () => {
+    const callback: InsightfullDisplayStateCallback = vi.fn();
+    bridge = new InsightfullIframeBridge({ onDisplayStateChange: callback });
+    const iframe = makeIframe();
+
+    bridge.registerIframe({
+      iframe,
+      iframeUrl: IFRAME_URL,
+      nonce: "nonce-123",
+      studyId: 42,
+    });
+    dispatchDisplayState(iframe, "minimized");
+    dispatchDisplayState(iframe, "expanded");
+    dispatchDisplayState(iframe, "minimized");
+
+    expect(callback).toHaveBeenCalledTimes(3);
+    expect(callback).toHaveBeenNthCalledWith(1, "minimized", 42);
+    expect(callback).toHaveBeenNthCalledWith(2, "expanded", 42);
+    expect(callback).toHaveBeenNthCalledWith(3, "minimized", 42);
+  });
+
+  it("does not invoke callback when no iframe is active", () => {
+    const callback: InsightfullDisplayStateCallback = vi.fn();
+    bridge = new InsightfullIframeBridge({ onDisplayStateChange: callback });
+    const iframe = makeIframe();
+    document.body.appendChild(iframe);
+
+    dispatchDisplayState(iframe, "minimized");
+
+    expect(callback).not.toHaveBeenCalled();
   });
 });

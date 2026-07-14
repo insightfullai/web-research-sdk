@@ -821,7 +821,7 @@ __metadata:
   languageName: unknown
   linkType: soft
 
-"@insightfull/web-research-sdk-recorder@workspace:packages/recorder":
+"@insightfull/web-research-sdk-recorder@workspace:*, @insightfull/web-research-sdk-recorder@workspace:packages/recorder":
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk-recorder@workspace:packages/recorder"
   dependencies:
@@ -3612,6 +3612,7 @@ __metadata:
   dependencies:
     "@insightfull/web-research-sdk": "workspace:*"
     "@insightfull/web-research-sdk-react": "workspace:*"
+    "@insightfull/web-research-sdk-recorder": "workspace:*"
     "@radix-ui/react-dialog": "npm:^1.1.15"
     "@radix-ui/react-separator": "npm:^1.1.8"
     "@radix-ui/react-slot": "npm:^1.2.4"

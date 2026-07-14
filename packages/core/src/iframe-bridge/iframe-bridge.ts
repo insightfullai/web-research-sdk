@@ -56,6 +56,26 @@ export interface InsightfullIframeReadyMessage {
   version: 1;
 }
 
+/**
+ * Display states the iframe can request the host SDK to apply.
+ * - "expanded": full-size iframe overlay (default).
+ * - "minimized": small pill/tab at the bottom; iframe contentWindow stays alive.
+ */
+export type InsightfullIframeDisplayState = "expanded" | "minimized";
+
+/**
+ * Message sent FROM the study iframe TO the host SDK to request a display
+ * state change. Used by in-app testing to collapse the iframe so the
+ * participant can interact with their real application.
+ */
+export interface InsightfullIframeDisplayStateMessage {
+  nonce: string;
+  state: InsightfullIframeDisplayState;
+  studyId: number;
+  type: "insightfull.iframe_display_state";
+  version: 1;
+}
+
 export interface InsightfullIframeBridgeState {
   active: boolean;
   queueSize: number;
@@ -63,6 +83,15 @@ export interface InsightfullIframeBridgeState {
   studyId: number | null;
   targetOrigin: string | null;
 }
+
+/**
+ * Callback invoked when the iframe requests a display state change.
+ * The host SDK applies the state to the rendered container.
+ */
+export type InsightfullDisplayStateCallback = (
+  state: InsightfullIframeDisplayState,
+  studyId: number,
+) => void;
 
 export interface InsightfullIframeRegistration {
   iframe: HTMLIFrameElement;
@@ -84,10 +113,17 @@ function isRecord(value: unknown): value is Record<string, unknown> {
 export class InsightfullIframeBridge {
   private active: ActiveIframeBridge | null = null;
   private readonly maxQueueSize: number;
-  private readonly onMessage = (event: MessageEvent) => this.handleReadyMessage(event);
+  private readonly onDisplayStateChange: InsightfullDisplayStateCallback | null;
+  private readonly onMessage = (event: MessageEvent) => this.handleIncomingMessage(event);
 
-  constructor(options: { maxQueueSize?: number } = {}) {
+  constructor(
+    options: {
+      maxQueueSize?: number;
+      onDisplayStateChange?: InsightfullDisplayStateCallback;
+    } = {},
+  ) {
     this.maxQueueSize = options.maxQueueSize ?? DEFAULT_MAX_IFRAME_QUEUE_SIZE;
+    this.onDisplayStateChange = options.onDisplayStateChange ?? null;
     if (typeof window !== "undefined") {
       window.addEventListener("message", this.onMessage);
     }
@@ -102,7 +138,13 @@ export class InsightfullIframeBridge {
 
   getState(): InsightfullIframeBridgeState {
     if (!this.active) {
-      return { active: false, queueSize: 0, ready: false, studyId: null, targetOrigin: null };
+      return {
+        active: false,
+        queueSize: 0,
+        ready: false,
+        studyId: null,
+        targetOrigin: null,
+      };
     }
     return {
       active: true,
@@ -144,7 +186,7 @@ export class InsightfullIframeBridge {
     return true;
   }
 
-  private handleReadyMessage(event: MessageEvent): void {
+  private handleIncomingMessage(event: MessageEvent): void {
     const active = this.active;
     if (!active || event.origin !== active.targetOrigin) {
       return;
@@ -156,12 +198,20 @@ export class InsightfullIframeBridge {
     if (!isRecord(data)) {
       return;
     }
-    if (
-      data.type !== "insightfull.iframe_ready" ||
-      data.version !== 1 ||
-      data.studyId !== active.studyId ||
-      data.nonce !== active.nonce
-    ) {
+
+    if (data.type === "insightfull.iframe_ready") {
+      this.handleReadyMessage(active, data);
+      return;
+    }
+
+    if (data.type === "insightfull.iframe_display_state") {
+      this.handleDisplayStateMessage(active, data);
+      return;
+    }
+  }
+
+  private handleReadyMessage(active: ActiveIframeBridge, data: Record<string, unknown>): void {
+    if (data.version !== 1 || data.studyId !== active.studyId || data.nonce !== active.nonce) {
       return;
     }
 
@@ -170,6 +220,22 @@ export class InsightfullIframeBridge {
     for (const message of queued) {
       this.postToActiveIframe(active, message);
     }
+  }
+
+  private handleDisplayStateMessage(
+    active: ActiveIframeBridge,
+    data: Record<string, unknown>,
+  ): void {
+    if (data.version !== 1 || data.studyId !== active.studyId || data.nonce !== active.nonce) {
+      return;
+    }
+
+    const state = data.state;
+    if (state !== "expanded" && state !== "minimized") {
+      return;
+    }
+
+    this.onDisplayStateChange?.(state, active.studyId);
   }
 
   private postToActiveIframe(

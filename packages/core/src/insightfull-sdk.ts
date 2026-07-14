@@ -16,10 +16,13 @@ import {
   buildStudyRenderPayload,
   removeStudy,
   renderStudy,
+  setStudyDisplayState,
 } from "./iframe-renderer/iframe-renderer.js";
 import { sendTelemetry } from "./telemetry-sender/telemetry-sender.js";
 import type {
+  InsightfullDisplayStateCallback,
   InsightfullIframeBridgeState,
+  InsightfullIframeDisplayState,
   InsightfullIframeMessage,
   InsightfullRecorderSafeAttributeValue,
   InsightfullRecorderSafeContext,
@@ -52,8 +55,11 @@ export class InsightfullSDK {
   private readonly pendingTriggerEvaluations: string[] = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private autoTracker: AutoTracker | null = null;
-  private readonly iframeBridge = new InsightfullIframeBridge();
+  private readonly iframeBridge: InsightfullIframeBridge;
   private readonly studyRenderer: InsightfullStudyRenderer | undefined;
+  private customRendererDisplayStateCallback:
+    | ((state: InsightfullIframeDisplayState) => void)
+    | null = null;
   private activeStudyId: number | null = null;
   private destroyed = false;
 
@@ -116,6 +122,27 @@ export class InsightfullSDK {
     return this.iframeBridge.send(message);
   }
 
+  /**
+   * Minimize the active study to a small pill. The iframe contentWindow stays
+   * alive so the postMessage bridge and recorder keep working.
+   * Safe no-op when no study is active.
+   */
+  minimizeStudy(): void {
+    if (this.activeStudyId !== null) {
+      setStudyDisplayState(this.activeStudyId, "minimized");
+    }
+  }
+
+  /**
+   * Expand the active study back to its full-size overlay.
+   * Safe no-op when no study is active.
+   */
+  expandStudy(): void {
+    if (this.activeStudyId !== null) {
+      setStudyDisplayState(this.activeStudyId, "expanded");
+    }
+  }
+
   /** Whether the periodic flush timer is active. */
   get hasActiveFlushTimer(): boolean {
     return this.flushTimer !== null;
@@ -131,6 +158,10 @@ export class InsightfullSDK {
     this.apiBase = options.apiBase ?? "https://insightfull.ai";
     this.studyRenderer = options.renderStudy;
     this.visitorId = this.getOrCreateVisitorId();
+
+    this.iframeBridge = new InsightfullIframeBridge({
+      onDisplayStateChange: (state, studyId) => this.handleDisplayStateChange(state, studyId),
+    });
 
     this.eventQueue = new EventQueue({
       maxSize: MAX_QUEUE_SIZE,
@@ -354,6 +385,19 @@ export class InsightfullSDK {
   }
 
   /**
+   * Handle a display state change requested by the study iframe via bridge.
+   * For the default renderer, applies the state to the DOM container.
+   * For custom renderers, forwards to the renderer's onDisplayStateChange callback.
+   */
+  private handleDisplayStateChange(state: InsightfullIframeDisplayState, studyId: number): void {
+    if (this.studyRenderer) {
+      this.customRendererDisplayStateCallback?.(state);
+      return;
+    }
+    setStudyDisplayState(studyId, state);
+  }
+
+  /**
    * Send a batch of telemetry events to the backend.
    */
   private async flushBatch(batch: SdkEvent[]): Promise<void> {
@@ -405,23 +449,28 @@ export class InsightfullSDK {
 
     if (this.studyRenderer) {
       this.iframeBridge.unregisterIframe();
-      this.studyRenderer(
-        buildStudyRenderPayload(this.apiBase, study, context, {
-          removeDefaultStudy: () => {
-            removeStudy(study.id);
-          },
-          registerIframeBridge: ({ iframe, iframeUrl, nonce, studyId }) => {
-            if (!nonce) {
-              return () => undefined;
-            }
-            this.iframeBridge.registerIframe({ iframe, iframeUrl, nonce, studyId });
-            return () => {
-              this.clearActiveStudy(studyId);
-              this.iframeBridge.unregisterIframe(studyId);
-            };
-          },
-        }),
-      );
+      const renderPayload = buildStudyRenderPayload(this.apiBase, study, context, {
+        removeDefaultStudy: () => {
+          removeStudy(study.id);
+        },
+        registerIframeBridge: ({ iframe, iframeUrl, nonce, studyId }) => {
+          if (!nonce) {
+            return () => undefined;
+          }
+          this.iframeBridge.registerIframe({
+            iframe,
+            iframeUrl,
+            nonce,
+            studyId,
+          });
+          return () => {
+            this.clearActiveStudy(studyId);
+            this.iframeBridge.unregisterIframe(studyId);
+          };
+        },
+      });
+      this.customRendererDisplayStateCallback = renderPayload.onDisplayStateChange ?? null;
+      this.studyRenderer(renderPayload);
       return;
     }
 

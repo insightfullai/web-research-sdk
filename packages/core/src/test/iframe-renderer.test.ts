@@ -5,6 +5,7 @@ import {
   buildStudyRenderPayload,
   removeStudy,
   renderStudy,
+  setStudyDisplayState,
 } from "../iframe-renderer/iframe-renderer.js";
 import type { SdkContext, StudyContent } from "../types/index.js";
 
@@ -159,5 +160,101 @@ describe("iframe renderer", () => {
     // Should be a different element (old one removed, new one created)
     expect(host1).not.toBe(host2);
     expect(document.querySelectorAll("#insightfull-study-1").length).toBe(1);
+  });
+
+  // ── Display state (collapse/minimize) ─────────────────────────────
+
+  it("creates a minimized pill element hidden by default", () => {
+    const study = makeStudy();
+    const context = makeContext();
+    renderStudy("https://insightfull.ai", study, context);
+
+    const host = document.getElementById("insightfull-study-1");
+    expect(host?.dataset.displayState).toBe("expanded");
+
+    const pill = host?.querySelector('[data-role="insightfull-minimized-pill"]');
+    expect(pill).not.toBeNull();
+    expect((pill as HTMLElement)?.style.display).toBe("none");
+  });
+
+  it("setStudyDisplayState minimized hides iframe wrapper and shows pill", () => {
+    const study = makeStudy({ id: 5 });
+    const context = makeContext();
+    renderStudy("https://insightfull.ai", study, context);
+
+    setStudyDisplayState(5, "minimized");
+
+    const host = document.getElementById("insightfull-study-5");
+    expect(host?.dataset.displayState).toBe("minimized");
+
+    const wrapper = host?.querySelector('[data-role="insightfull-iframe-wrapper"]');
+    expect((wrapper as HTMLElement)?.style.display).toBe("none");
+
+    const pill = host?.querySelector('[data-role="insightfull-minimized-pill"]');
+    expect((pill as HTMLElement)?.style.display).toBe("flex");
+  });
+
+  it("setStudyDisplayState expanded restores full size and hides pill", () => {
+    const study = makeStudy({ id: 6 });
+    const context = makeContext();
+    renderStudy("https://insightfull.ai", study, context);
+
+    setStudyDisplayState(6, "minimized");
+    setStudyDisplayState(6, "expanded");
+
+    const host = document.getElementById("insightfull-study-6");
+    expect(host?.dataset.displayState).toBe("expanded");
+    expect(host?.style.width).toBe("420px");
+    expect(host?.style.height).toBe("640px");
+
+    const wrapper = host?.querySelector('[data-role="insightfull-iframe-wrapper"]');
+    expect((wrapper as HTMLElement)?.style.display).toBe("block");
+
+    const pill = host?.querySelector('[data-role="insightfull-minimized-pill"]');
+    expect((pill as HTMLElement)?.style.display).toBe("none");
+  });
+
+  it("keeps the iframe in the DOM when minimized so contentWindow stays alive", () => {
+    const study = makeStudy({ id: 7 });
+    const context = makeContext();
+    renderStudy("https://insightfull.ai", study, context);
+
+    setStudyDisplayState(7, "minimized");
+
+    const iframe = document.querySelector("#insightfull-study-7 iframe");
+    expect(iframe).not.toBeNull();
+  });
+
+  it("pill click expands the study", () => {
+    const study = makeStudy({ id: 8 });
+    const context = makeContext();
+    renderStudy("https://insightfull.ai", study, context);
+
+    setStudyDisplayState(8, "minimized");
+
+    const pill = document.querySelector(
+      '#insightfull-study-8 [data-role="insightfull-minimized-pill"]',
+    ) as HTMLButtonElement;
+    expect(pill).not.toBeNull();
+
+    pill.click();
+
+    const host = document.getElementById("insightfull-study-8");
+    expect(host?.dataset.displayState).toBe("expanded");
+  });
+
+  it("setStudyDisplayState is a safe no-op if study container does not exist", () => {
+    expect(() => setStudyDisplayState(999, "minimized")).not.toThrow();
+  });
+
+  it("pill has accessible aria-label with study title", () => {
+    const study = makeStudy({ id: 9, title: "Checkout Usability" });
+    const context = makeContext();
+    renderStudy("https://insightfull.ai", study, context);
+
+    const pill = document.querySelector(
+      '#insightfull-study-9 [data-role="insightfull-minimized-pill"]',
+    ) as HTMLButtonElement;
+    expect(pill?.getAttribute("aria-label")).toBe("Expand Checkout Usability");
   });
 });

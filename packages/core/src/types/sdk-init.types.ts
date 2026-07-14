@@ -2,6 +2,7 @@
  * SDK initialization options.
  */
 
+import type { InsightfullIframeDisplayState } from "../iframe-bridge/iframe-bridge.js";
 import type { StudyContent } from "./sdk-config.types.js";
 import type { SdkContext } from "./sdk-context.types.js";
 
@@ -11,6 +12,13 @@ export interface InsightfullStudyRenderPayload {
   context: SdkContext;
   registerIframeBridge: (iframe: HTMLIFrameElement) => () => void;
   removeDefaultStudy: () => void;
+  /**
+   * Called when the iframe requests a display state change.
+   * Custom renderers should hide/show their container accordingly.
+   * The default renderer handles this automatically; this callback is
+   * only invoked when a custom `renderStudy` is provided.
+   */
+  onDisplayStateChange?: ((state: InsightfullIframeDisplayState) => void) | undefined;
 }
 
 export type InsightfullStudyRenderer = (payload: InsightfullStudyRenderPayload) => void;
