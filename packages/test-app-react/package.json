@@ -11,6 +11,8 @@
     "clean": "rm -rf dist"
   },
   "dependencies": {
+    "@insightfull/web-research-sdk": "workspace:*",
+    "@insightfull/web-research-sdk-recorder": "workspace:*",
     "react": "^19.2.0",
     "react-dom": "^19.2.0"
   },

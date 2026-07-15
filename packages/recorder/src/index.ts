@@ -1,10 +1,14 @@
 import { record as rrwebRecord } from "rrweb";
 import type {
+  InsightfullActivityEvidenceCallback,
   InsightfullIframeBridgeState,
   InsightfullIframeMessage,
   InsightfullRecorderSafeAttributeValue,
   InsightfullRecorderSafeContext,
   InsightfullRecordingContext,
+  InsightfullRecordingActivityEvidenceMessage,
+  InsightfullResponseCompletedCallback,
+  InsightfullResponseCompletedMessage,
 } from "@insightfull/web-research-sdk";
 
 const DEFAULT_FLUSH_INTERVAL_MS = 2000;
@@ -20,7 +24,9 @@ const RRWEB_FORMAT_VERSION = "2.1.0";
 
 type RrwebRecordOptions = NonNullable<Parameters<typeof rrwebRecord>[0]>;
 type RrwebStopFn = ReturnType<typeof rrwebRecord>;
-type InsightfullRrwebRecordOptions = RrwebRecordOptions & { maskAllText?: boolean };
+type InsightfullRrwebRecordOptions = RrwebRecordOptions & {
+  maskAllText?: boolean;
+};
 
 export type InsightfullRecorderState =
   | "idle"
@@ -40,11 +46,14 @@ export type InsightfullRecordingFlushReason =
   | "max_duration"
   | "max_session_limits"
   | "page_lifecycle"
+  | "participant_completed"
   | "study_closed";
 
 export interface InsightfullRecorderCompatibleSDK {
   getIframeBridgeState(): InsightfullIframeBridgeState;
   getRecorderContext(): InsightfullRecorderSafeContext;
+  onActivityEvidence?(callback: InsightfullActivityEvidenceCallback): () => void;
+  onResponseCompleted?(callback: InsightfullResponseCompletedCallback): () => void;
   sendIframeBridgeMessage(message: InsightfullIframeMessage): boolean;
 }
 
@@ -69,6 +78,13 @@ export interface InsightfullRecordingChunk {
   startedAt: number;
 }
 
+export interface InsightfullRecordingFinalization {
+  completion: InsightfullResponseCompletedMessage;
+  context: InsightfullRecordingContext;
+  recordingSessionId: string;
+  stopReason: "participant_completed";
+}
+
 export interface InsightfullRecorderOptions {
   /** Automatically attempt to start when attached. Manual start() still works when false. */
   enabled?: boolean;
@@ -84,6 +100,12 @@ export interface InsightfullRecorderOptions {
   createSession?: (session: InsightfullRecordingSession) => Promise<void> | void;
   /** Upload one buffered chunk in a future backend. Stubbed for MVP tests. */
   uploadChunk?: (chunk: InsightfullRecordingChunk) => Promise<void> | void;
+  /** Upload verified semantic evidence. Failures do not stop rrweb capture. */
+  uploadActivityEvidence?: (
+    message: InsightfullRecordingActivityEvidenceMessage,
+  ) => Promise<void> | void;
+  /** Finalize once after verified participant completion and the final chunk flush attempt. */
+  finalizeSession?: (finalization: InsightfullRecordingFinalization) => Promise<void> | void;
   flushIntervalMs?: number;
   iframeReadyPollIntervalMs?: number;
   iframeReadyTimeoutMs?: number;
@@ -117,6 +139,7 @@ export interface InsightfullRecorderController {
 interface NormalizedRecorderOptions {
   blockClass?: RrwebRecordOptions["blockClass"];
   createSession?: (session: InsightfullRecordingSession) => Promise<void> | void;
+  finalizeSession?: (finalization: InsightfullRecordingFinalization) => Promise<void> | void;
   flushIntervalMs: number;
   iframeReadyPollIntervalMs: number;
   iframeReadyTimeoutMs: number;
@@ -129,6 +152,9 @@ interface NormalizedRecorderOptions {
   maxSessionDurationMs: number;
   maxSessionEvents: number;
   uploadChunk?: (chunk: InsightfullRecordingChunk) => Promise<void> | void;
+  uploadActivityEvidence?: (
+    message: InsightfullRecordingActivityEvidenceMessage,
+  ) => Promise<void> | void;
 }
 
 export function attachInsightfullRecorder(
@@ -155,11 +181,15 @@ class InsightfullRecorder implements InsightfullRecorderController {
   private detached = false;
   private bridgePollTimer: ReturnType<typeof setTimeout> | null = null;
   private flushInFlight: Promise<void> = Promise.resolve();
+  private finishInFlight: Promise<InsightfullRecorderStateSnapshot> | null = null;
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private maxDurationTimer: ReturnType<typeof setTimeout> | null = null;
   private readyDeadline = 0;
   private readyPollTimer: ReturnType<typeof setTimeout> | null = null;
   private rrwebStop: RrwebStopFn | null = null;
+  private responseCompletionHandled = false;
+  private unsubscribeActivityEvidence: (() => void) | null = null;
+  private unsubscribeResponseCompleted: (() => void) | null = null;
 
   private readonly onPageLifecycle = () => {
     if (this.stateValue === "recording" || this.stateValue === "flushing") {
@@ -176,6 +206,14 @@ class InsightfullRecorder implements InsightfullRecorderController {
     options: InsightfullRecorderOptions,
   ) {
     this.options = normalizeOptions(options);
+    this.unsubscribeActivityEvidence =
+      this.sdk.onActivityEvidence?.((message) => {
+        this.handleActivityEvidence(message);
+      }) ?? null;
+    this.unsubscribeResponseCompleted =
+      this.sdk.onResponseCompleted?.((message) => {
+        this.handleResponseCompleted(message);
+      }) ?? null;
     if (options.enabled !== false) {
       this.start();
     }
@@ -215,6 +253,7 @@ class InsightfullRecorder implements InsightfullRecorderController {
 
   async detach(): Promise<InsightfullRecorderStateSnapshot> {
     this.detached = true;
+    this.unsubscribeBridgeCallbacks();
     return this.finish("aborted", "detach");
   }
 
@@ -301,6 +340,7 @@ class InsightfullRecorder implements InsightfullRecorderController {
     this.totalEvents = 0;
     this.chunksFlushed = 0;
     this.nextChunkIndex = 0;
+    this.responseCompletionHandled = false;
     this.stateValue = "recording";
 
     const session: InsightfullRecordingSession = {
@@ -401,7 +441,7 @@ class InsightfullRecorder implements InsightfullRecorderController {
     return bridgeState.active && bridgeState.studyId === this.activeStudyId;
   }
 
-  private async finish(
+  private finish(
     finalState: "aborted" | "completed",
     reason: InsightfullRecordingFlushReason,
   ): Promise<InsightfullRecorderStateSnapshot> {
@@ -410,8 +450,21 @@ class InsightfullRecorder implements InsightfullRecorderController {
       this.stateValue === "aborted" ||
       this.stateValue === "completed"
     ) {
-      return this.getState();
+      return Promise.resolve(this.getState());
     }
+    if (this.finishInFlight) {
+      return this.finishInFlight;
+    }
+
+    this.finishInFlight = this.finishOnce(finalState, reason);
+    return this.finishInFlight;
+  }
+
+  private async finishOnce(
+    finalState: "aborted" | "completed",
+    reason: InsightfullRecordingFlushReason,
+  ): Promise<InsightfullRecorderStateSnapshot> {
+    this.unsubscribeBridgeCallbacks();
 
     this.clearReadyPollTimer();
     this.clearBridgePollTimer();
@@ -433,6 +486,72 @@ class InsightfullRecorder implements InsightfullRecorderController {
       this.stateValue = finalState;
     }
     return this.getState();
+  }
+
+  private handleActivityEvidence(message: InsightfullRecordingActivityEvidenceMessage): void {
+    if (
+      this.detached ||
+      this.stateValue !== "recording" ||
+      message.studyId !== this.activeStudyId ||
+      message.evidence.recordingSessionId !== this.recordingSessionId ||
+      (this.recordingContext?.responseId !== undefined &&
+        message.responseId !== this.recordingContext.responseId) ||
+      (this.recordingContext?.sectionResponseId !== undefined &&
+        message.sectionResponseId !== this.recordingContext.sectionResponseId)
+    ) {
+      return;
+    }
+    try {
+      const upload = this.options.uploadActivityEvidence?.(message);
+      if (upload) {
+        void upload.catch(() => undefined);
+      }
+    } catch {
+      // Semantic evidence is best effort and cannot stop the participant recording.
+    }
+  }
+
+  private handleResponseCompleted(message: InsightfullResponseCompletedMessage): void {
+    if (
+      this.detached ||
+      this.responseCompletionHandled ||
+      (this.stateValue !== "recording" && this.stateValue !== "flushing") ||
+      message.studyId !== this.activeStudyId ||
+      (this.recordingContext?.responseId !== undefined &&
+        this.recordingContext.responseId !== message.responseId)
+    ) {
+      return;
+    }
+    this.responseCompletionHandled = true;
+    void this.completeParticipantResponse(message);
+  }
+
+  private async completeParticipantResponse(
+    completion: InsightfullResponseCompletedMessage,
+  ): Promise<void> {
+    const recordingSessionId = this.recordingSessionId;
+    const context = this.recordingContext;
+    if (!(recordingSessionId && context)) {
+      return;
+    }
+    const finalContext: InsightfullRecordingContext = {
+      ...context,
+      responseId: completion.responseId,
+    };
+    this.recordingContext = finalContext;
+    await this.finish("completed", "participant_completed");
+
+    try {
+      await this.options.finalizeSession?.({
+        completion,
+        context: finalContext,
+        recordingSessionId,
+        stopReason: "participant_completed",
+      });
+    } catch (error) {
+      this.lastError = error instanceof Error ? error.message : String(error);
+      this.stateValue = "failed";
+    }
   }
 
   private async flushCurrentChunk(reason: InsightfullRecordingFlushReason): Promise<void> {
@@ -510,6 +629,7 @@ class InsightfullRecorder implements InsightfullRecorderController {
   }
 
   private fail(error: unknown): void {
+    this.unsubscribeBridgeCallbacks();
     this.clearReadyPollTimer();
     this.clearBridgePollTimer();
     this.clearRuntimeTimers();
@@ -566,6 +686,13 @@ class InsightfullRecorder implements InsightfullRecorderController {
     window.removeEventListener("pagehide", this.onPageLifecycle);
     window.removeEventListener("beforeunload", this.onPageLifecycle);
   }
+
+  private unsubscribeBridgeCallbacks(): void {
+    this.unsubscribeActivityEvidence?.();
+    this.unsubscribeActivityEvidence = null;
+    this.unsubscribeResponseCompleted?.();
+    this.unsubscribeResponseCompleted = null;
+  }
 }
 
 function normalizeOptions(options: InsightfullRecorderOptions): NormalizedRecorderOptions {
@@ -602,6 +729,12 @@ function normalizeOptions(options: InsightfullRecorderOptions): NormalizedRecord
   }
   if (options.uploadChunk !== undefined) {
     normalized.uploadChunk = options.uploadChunk;
+  }
+  if (options.uploadActivityEvidence !== undefined) {
+    normalized.uploadActivityEvidence = options.uploadActivityEvidence;
+  }
+  if (options.finalizeSession !== undefined) {
+    normalized.finalizeSession = options.finalizeSession;
   }
 
   return normalized;

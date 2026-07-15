@@ -8,6 +8,9 @@ export default defineConfig({
       "@insightfull/web-research-sdk": fileURLToPath(
         new URL("../core/src/index.ts", import.meta.url),
       ),
+      "@insightfull/web-research-sdk-recorder": fileURLToPath(
+        new URL("../recorder/src/index.ts", import.meta.url),
+      ),
     },
   },
 });

@@ -20,7 +20,6 @@ import {
 } from "./iframe-renderer/iframe-renderer.js";
 import { sendTelemetry } from "./telemetry-sender/telemetry-sender.js";
 import type {
-  InsightfullDisplayStateCallback,
   InsightfullIframeBridgeState,
   InsightfullIframeDisplayState,
   InsightfullIframeMessage,
@@ -28,14 +27,23 @@ import type {
   InsightfullRecorderSafeContext,
 } from "./iframe-bridge/iframe-bridge.js";
 import type {
+  InsightfullActivityEvidenceCallback,
+  InsightfullRecordingActivityEvidenceMessage,
+  InsightfullResponseCompletedCallback,
+  InsightfullResponseCompletedMessage,
+} from "./iframe-bridge/participant-bridge-contracts.js";
+import type {
   GlobalSettings,
+  HostContextV1,
   InsightfullInitOptions,
   InsightfullStudyRenderer,
+  InsightfullTrackOptions,
   SdkConfig,
   SdkContext,
   SdkEvent,
   StudyContent,
 } from "./types/index.js";
+import { validateHostContext } from "./types/host-context.types.js";
 
 const FLUSH_INTERVAL_MS = 5000;
 const MAX_QUEUE_SIZE = 100;
@@ -52,11 +60,16 @@ export class InsightfullSDK {
   private readonly attributes: Record<string, unknown> = {};
   private config: SdkConfig | null = null;
   private readonly eventQueue: EventQueue;
-  private readonly pendingTriggerEvaluations: string[] = [];
+  private readonly pendingTriggerEvaluations: Array<{
+    eventName: string;
+    hostContext?: HostContextV1;
+  }> = [];
   private flushTimer: ReturnType<typeof setInterval> | null = null;
   private autoTracker: AutoTracker | null = null;
   private readonly iframeBridge: InsightfullIframeBridge;
   private readonly studyRenderer: InsightfullStudyRenderer | undefined;
+  private readonly activityEvidenceCallbacks = new Set<InsightfullActivityEvidenceCallback>();
+  private readonly responseCompletedCallbacks = new Set<InsightfullResponseCompletedCallback>();
   private customRendererDisplayStateCallback:
     | ((state: InsightfullIframeDisplayState) => void)
     | null = null;
@@ -111,7 +124,26 @@ export class InsightfullSDK {
       url,
       userId: this._userId,
       visitorId: this.visitorId,
+      ...this.iframeBridge.getResponseContext(),
     };
+  }
+
+  /** Subscribe to strict activity evidence from the verified active study iframe. */
+  onActivityEvidence(callback: InsightfullActivityEvidenceCallback): () => void {
+    if (this.destroyed) {
+      return () => undefined;
+    }
+    this.activityEvidenceCallbacks.add(callback);
+    return () => this.activityEvidenceCallbacks.delete(callback);
+  }
+
+  /** Subscribe to server-confirmed completion from the verified active study iframe. */
+  onResponseCompleted(callback: InsightfullResponseCompletedCallback): () => void {
+    if (this.destroyed) {
+      return () => undefined;
+    }
+    this.responseCompletedCallbacks.add(callback);
+    return () => this.responseCompletedCallbacks.delete(callback);
   }
 
   /** Send a bridge message to the active study iframe. Safe no-op when no iframe is active. */
@@ -159,8 +191,17 @@ export class InsightfullSDK {
     this.studyRenderer = options.renderStudy;
     this.visitorId = this.getOrCreateVisitorId();
 
+    if (options.onActivityEvidence) {
+      this.activityEvidenceCallbacks.add(options.onActivityEvidence);
+    }
+    if (options.onResponseCompleted) {
+      this.responseCompletedCallbacks.add(options.onResponseCompleted);
+    }
+
     this.iframeBridge = new InsightfullIframeBridge({
+      onActivityEvidence: (message) => this.notifyActivityEvidence(message),
       onDisplayStateChange: (state, studyId) => this.handleDisplayStateChange(state, studyId),
+      onResponseCompleted: (message) => this.notifyResponseCompleted(message),
     });
 
     this.eventQueue = new EventQueue({
@@ -231,7 +272,11 @@ export class InsightfullSDK {
   /**
    * Track a custom event and evaluate triggers.
    */
-  track(eventName: string, payload?: Record<string, unknown>): void {
+  track(
+    eventName: string,
+    payload?: Record<string, unknown>,
+    options?: InsightfullTrackOptions,
+  ): void {
     if (this.destroyed) {
       return;
     }
@@ -241,7 +286,9 @@ export class InsightfullSDK {
       timestamp: Date.now(),
       payload,
     } as SdkEvent);
-    this.evaluateAndShow(eventName);
+    const hostContext =
+      options?.hostContext === undefined ? undefined : validateHostContext(options.hostContext);
+    this.evaluateAndShow(eventName, hostContext ?? undefined);
   }
 
   /**
@@ -261,6 +308,8 @@ export class InsightfullSDK {
     }
     this.activeStudyId = null;
     this.iframeBridge.destroy();
+    this.activityEvidenceCallbacks.clear();
+    this.responseCompletedCallbacks.clear();
 
     // Final flush — await to prevent unhandled promise rejections and data loss
     await this.eventQueue.flush();
@@ -323,8 +372,8 @@ export class InsightfullSDK {
 
   private flushPendingTriggerEvaluations(): void {
     const pendingEvaluations = this.pendingTriggerEvaluations.splice(0);
-    for (const eventName of pendingEvaluations) {
-      this.evaluateAndShow(eventName);
+    for (const evaluation of pendingEvaluations) {
+      this.evaluateAndShow(evaluation.eventName, evaluation.hostContext);
     }
   }
 
@@ -397,6 +446,26 @@ export class InsightfullSDK {
     setStudyDisplayState(studyId, state);
   }
 
+  private notifyActivityEvidence(message: InsightfullRecordingActivityEvidenceMessage): void {
+    for (const callback of this.activityEvidenceCallbacks) {
+      try {
+        callback(message);
+      } catch {
+        // Host callbacks cannot break the iframe bridge or participant flow.
+      }
+    }
+  }
+
+  private notifyResponseCompleted(message: InsightfullResponseCompletedMessage): void {
+    for (const callback of this.responseCompletedCallbacks) {
+      try {
+        callback(message);
+      } catch {
+        // Completion is already server-confirmed; host callbacks are best effort.
+      }
+    }
+  }
+
   /**
    * Send a batch of telemetry events to the backend.
    */
@@ -407,9 +476,12 @@ export class InsightfullSDK {
   /**
    * Evaluate triggers for an event and show a matching study if found.
    */
-  private evaluateAndShow(eventName: string): void {
+  private evaluateAndShow(eventName: string, hostContext?: HostContextV1): void {
     if (!this.config) {
-      this.pendingTriggerEvaluations.push(eventName);
+      this.pendingTriggerEvaluations.push({
+        eventName,
+        ...(hostContext ? { hostContext } : {}),
+      });
       return;
     }
 
@@ -424,7 +496,7 @@ export class InsightfullSDK {
     );
 
     if (matchedStudy) {
-      this.showStudy(matchedStudy, eventName);
+      this.showStudy(matchedStudy, eventName, hostContext);
       setCooldown(matchedStudy.id);
     }
   }
@@ -432,7 +504,7 @@ export class InsightfullSDK {
   /**
    * Show a study in a positioned iframe.
    */
-  private showStudy(study: StudyContent, triggerEvent: string): void {
+  private showStudy(study: StudyContent, triggerEvent: string, hostContext?: HostContextV1): void {
     const iframeBridgeNonce = this.generateId();
     this.activeStudyId = study.id;
     const context: SdkContext = {
@@ -445,6 +517,7 @@ export class InsightfullSDK {
       sdkVersion: SDK_VERSION,
       source: "web_sdk",
       triggerEvent,
+      ...(hostContext ? { hostContext } : {}),
     };
 
     if (this.studyRenderer) {

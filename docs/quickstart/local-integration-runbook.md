@@ -17,10 +17,12 @@ In your host app, link the packages:
 # Using yarn link
 cd packages/core && yarn link
 cd packages/react && yarn link
+cd packages/recorder && yarn link
 
 # In your host app
 yarn link @insightfull/web-research-sdk
 yarn link @insightfull/web-research-sdk-react
+yarn link @insightfull/web-research-sdk-recorder
 ```
 
 ## Packed validation (publish parity)
@@ -29,6 +31,7 @@ yarn link @insightfull/web-research-sdk-react
 yarn build
 cd packages/core && yarn pack --dry-run
 cd packages/react && yarn pack --dry-run
+cd packages/recorder && yarn pack --dry-run
 ```
 
 Install the generated tarballs into your host app.
@@ -62,6 +65,18 @@ yarn workspace @insightfull/web-research-sdk build
 yarn workspace @insightfull/web-research-sdk test
 yarn workspace @insightfull/web-research-sdk-react build
 yarn workspace @insightfull/web-research-sdk-react test
+yarn workspace @insightfull/web-research-sdk-recorder build
+yarn workspace @insightfull/web-research-sdk-recorder test
 ```
+
+For Insightfull's provenance preparation script, point `WEB_RESEARCH_SDK_REPO` at a clean checkout of the exact full commit pinned by that script:
+
+```bash
+WEB_RESEARCH_SDK_REPO=/absolute/path/to/web-research-sdk \
+  DOGFOOD_SDK_FORCE_PREPARE=1 \
+  yarn prepare:web-research-sdk-dogfood
+```
+
+The script intentionally rejects a dirty checkout or a different HEAD. Update the downstream full-commit pin only after the SDK change is reviewed and committed.
 
 The `@insightfull/web-research-sdk-shared` package is an internal workspace package and is **not** part of the public adoption surface.

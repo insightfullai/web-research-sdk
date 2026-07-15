@@ -840,6 +840,8 @@ __metadata:
   version: 0.0.0-use.local
   resolution: "@insightfull/web-research-sdk-test-app-react@workspace:packages/test-app-react"
   dependencies:
+    "@insightfull/web-research-sdk": "workspace:*"
+    "@insightfull/web-research-sdk-recorder": "workspace:*"
     "@playwright/test": "npm:^1.54.2"
     "@types/react": "npm:^19.2.2"
     "@types/react-dom": "npm:^19.2.2"

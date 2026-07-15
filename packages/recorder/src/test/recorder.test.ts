@@ -1,9 +1,13 @@
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type {
+  InsightfullActivityEvidenceCallback,
   InsightfullIframeBridgeState,
   InsightfullIframeMessage,
   InsightfullRecorderSafeContext,
+  InsightfullRecordingActivityEvidenceMessage,
   InsightfullRecordingSessionMessage,
+  InsightfullResponseCompletedCallback,
+  InsightfullResponseCompletedMessage,
 } from "@insightfull/web-research-sdk";
 
 const recordMock = vi.hoisted(() => vi.fn());
@@ -33,6 +37,8 @@ class FakeSDK implements InsightfullRecorderCompatibleSDK {
     targetOrigin: "https://iframe.example.test",
   };
   readonly messages: InsightfullIframeMessage[] = [];
+  readonly activityEvidenceCallbacks = new Set<InsightfullActivityEvidenceCallback>();
+  readonly responseCompletedCallbacks = new Set<InsightfullResponseCompletedCallback>();
   recorderContext: InsightfullRecorderSafeContext = {
     activeStudyId: 42,
     customAttributes: { plan: "pro" },
@@ -54,6 +60,28 @@ class FakeSDK implements InsightfullRecorderCompatibleSDK {
       customAttributes: { ...this.recorderContext.customAttributes },
       customId: { ...this.recorderContext.customId },
     };
+  }
+
+  onActivityEvidence(callback: InsightfullActivityEvidenceCallback): () => void {
+    this.activityEvidenceCallbacks.add(callback);
+    return () => this.activityEvidenceCallbacks.delete(callback);
+  }
+
+  onResponseCompleted(callback: InsightfullResponseCompletedCallback): () => void {
+    this.responseCompletedCallbacks.add(callback);
+    return () => this.responseCompletedCallbacks.delete(callback);
+  }
+
+  emitActivityEvidence(message: InsightfullRecordingActivityEvidenceMessage): void {
+    for (const callback of this.activityEvidenceCallbacks) {
+      callback(message);
+    }
+  }
+
+  emitResponseCompleted(message: InsightfullResponseCompletedMessage): void {
+    for (const callback of this.responseCompletedCallbacks) {
+      callback(message);
+    }
   }
 
   sendIframeBridgeMessage(message: InsightfullIframeMessage): boolean {
@@ -84,6 +112,30 @@ function sessionMessages(sdk: FakeSDK): InsightfullRecordingSessionMessage[] {
   return sdk.messages.filter(isSessionMessage);
 }
 
+function makeActivityEvidenceMessage(
+  recordingSessionId: string,
+): InsightfullRecordingActivityEvidenceMessage {
+  return {
+    evidence: {
+      captureOffsetMs: 1200,
+      delivery: "silent",
+      evidenceId: "5b38db9d-e06f-47dc-8b36-bf66b7687023",
+      facts: { actionId: "apply_promo_code", kind: "click" },
+      kind: "click",
+      occurredAt: "2026-01-01T12:00:01.200Z",
+      recordingSessionId,
+      sequence: 1,
+      version: 1,
+    },
+    nonce: "nonce-1234567890",
+    responseId: 91_002,
+    sectionResponseId: 91_020,
+    studyId: 42,
+    type: "insightfull.recording_activity_evidence",
+    version: 1,
+  };
+}
+
 describe("attachInsightfullRecorder", () => {
   let rrwebStop: ReturnType<typeof vi.fn>;
 
@@ -104,7 +156,10 @@ describe("attachInsightfullRecorder", () => {
 
     const controller = attachInsightfullRecorder(sdk, { uploadChunk });
 
-    expect(controller.getState()).toMatchObject({ state: "recording", activeStudyId: 42 });
+    expect(controller.getState()).toMatchObject({
+      state: "recording",
+      activeStudyId: 42,
+    });
     expect(recordMock).toHaveBeenCalledTimes(1);
 
     getRecordOptions().emit({ type: 3, data: { source: "mutation" } });
@@ -112,7 +167,10 @@ describe("attachInsightfullRecorder", () => {
     await controller.detach();
 
     expect(rrwebStop).toHaveBeenCalledTimes(1);
-    expect(controller.getState()).toMatchObject({ state: "aborted", bufferedEvents: 0 });
+    expect(controller.getState()).toMatchObject({
+      state: "aborted",
+      bufferedEvents: 0,
+    });
     expect(emittedChunks(uploadChunk)).toHaveLength(1);
     expect(emittedChunks(uploadChunk)[0]).toMatchObject({
       reason: "detach",
@@ -151,13 +209,23 @@ describe("attachInsightfullRecorder", () => {
       iframeReadyTimeoutMs: 500,
     });
 
-    sdk.bridgeState = { ...sdk.bridgeState, active: false, ready: false, studyId: null };
+    sdk.bridgeState = {
+      ...sdk.bridgeState,
+      active: false,
+      ready: false,
+      studyId: null,
+    };
     await vi.advanceTimersByTimeAsync(25);
 
     expect(controller.getState().state).toBe("idle");
     expect(recordMock).not.toHaveBeenCalled();
 
-    sdk.bridgeState = { ...sdk.bridgeState, active: true, ready: true, studyId: 42 };
+    sdk.bridgeState = {
+      ...sdk.bridgeState,
+      active: true,
+      ready: true,
+      studyId: 42,
+    };
     await vi.advanceTimersByTimeAsync(1000);
 
     expect(controller.getState().state).toBe("recording");
@@ -336,9 +404,14 @@ describe("attachInsightfullRecorder", () => {
 
     expect(createSession).toHaveBeenCalledTimes(1);
     expect(rrwebStop).toHaveBeenCalledTimes(1);
-    expect(controller.getState()).toMatchObject({ state: "completed", bufferedEvents: 0 });
+    expect(controller.getState()).toMatchObject({
+      state: "completed",
+      bufferedEvents: 0,
+    });
     expect(emittedChunks(uploadChunk)).toHaveLength(1);
-    expect(emittedChunks(uploadChunk)[0]).toMatchObject({ reason: "manual_stop" });
+    expect(emittedChunks(uploadChunk)[0]).toMatchObject({
+      reason: "manual_stop",
+    });
     expect(sdk.messages.at(-1)).toMatchObject({
       state: "stopped",
       type: "insightfull.recording_session",
@@ -355,11 +428,81 @@ describe("attachInsightfullRecorder", () => {
     });
 
     getRecordOptions().emit({ type: 3, data: { source: "mutation" } });
-    sdk.bridgeState = { ...sdk.bridgeState, active: false, ready: false, studyId: null };
+    sdk.bridgeState = {
+      ...sdk.bridgeState,
+      active: false,
+      ready: false,
+      studyId: null,
+    };
 
     await vi.advanceTimersByTimeAsync(20);
 
     expect(controller.getState().state).toBe("completed");
-    expect(emittedChunks(uploadChunk)[0]).toMatchObject({ reason: "study_closed" });
+    expect(emittedChunks(uploadChunk)[0]).toMatchObject({
+      reason: "study_closed",
+    });
+  });
+
+  it("forwards verified matching activity evidence without disrupting recording on callback failure", async () => {
+    const sdk = new FakeSDK();
+    const uploadActivityEvidence = vi.fn().mockRejectedValue(new Error("evidence unavailable"));
+    const controller = attachInsightfullRecorder(sdk, {
+      uploadActivityEvidence,
+    });
+    const recordingSessionId = controller.getState().recordingSessionId;
+    if (!recordingSessionId) {
+      throw new Error("Expected an active recording session");
+    }
+
+    sdk.emitActivityEvidence(makeActivityEvidenceMessage("different_recording_session"));
+    sdk.emitActivityEvidence(makeActivityEvidenceMessage(recordingSessionId));
+    await Promise.resolve();
+
+    expect(uploadActivityEvidence).toHaveBeenCalledTimes(1);
+    expect(controller.state).toBe("recording");
+    await controller.detach();
+  });
+
+  it("stops, flushes, and makes one finalize attempt after verified response completion", async () => {
+    const sdk = new FakeSDK();
+    const order: string[] = [];
+    const uploadChunk = vi.fn(async () => {
+      order.push("upload");
+    });
+    const finalizeSession = vi.fn(async () => {
+      order.push("finalize");
+    });
+    const controller = attachInsightfullRecorder(sdk, {
+      finalizeSession,
+      uploadChunk,
+    });
+    getRecordOptions().emit({ type: 3, data: { source: "mutation" } });
+    const completion: InsightfullResponseCompletedMessage = {
+      nonce: "nonce-1234567890",
+      responseId: 91_002,
+      studyId: 42,
+      type: "insightfull.response_completed",
+      version: 1,
+    };
+
+    sdk.emitResponseCompleted(completion);
+    sdk.emitResponseCompleted(completion);
+
+    await vi.waitFor(() => expect(finalizeSession).toHaveBeenCalledTimes(1));
+    expect(rrwebStop).toHaveBeenCalledTimes(1);
+    expect(emittedChunks(uploadChunk)).toHaveLength(1);
+    expect(emittedChunks(uploadChunk)[0]).toMatchObject({
+      reason: "participant_completed",
+    });
+    expect(order).toEqual(["upload", "finalize"]);
+    expect(finalizeSession).toHaveBeenCalledWith(
+      expect.objectContaining({
+        completion,
+        context: expect.objectContaining({ responseId: 91_002, studyId: 42 }),
+        recordingSessionId: controller.getState().recordingSessionId,
+        stopReason: "participant_completed",
+      }),
+    );
+    expect(controller.state).toBe("completed");
   });
 });

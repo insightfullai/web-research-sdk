@@ -16,6 +16,18 @@ vi.mock("../telemetry-sender/telemetry-sender.js", () => ({
 
 const mockedFetchConfig = vi.mocked(fetchConfig);
 
+const validHostContext = {
+  scenario: { id: "northstar_checkout_v1", label: "Northstar checkout" },
+  state: { checkoutStep: "review", promoEntryAvailable: true },
+  surface: {
+    id: "checkout_review",
+    label: "Checkout review",
+    routeTemplate: "/checkout",
+  },
+  task: { id: "apply_promo_code", label: "Apply a promotional code" },
+  version: 1 as const,
+};
+
 function makeStudy(overrides: Partial<StudyContent> = {}): StudyContent {
   return {
     id: 1,
@@ -249,6 +261,73 @@ describe("InsightfullSDK", () => {
     void sdk.destroy();
   });
 
+  it("validates and passes explicit hostContext through the launch and iframe URL", async () => {
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([makeStudy()]));
+    const renderStudy = vi.fn<InsightfullStudyRenderer>();
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      autoTrack: false,
+      renderStudy,
+    });
+    await waitForSdkConfig();
+
+    sdk.track("checkout_completed", undefined, {
+      hostContext: validHostContext,
+    });
+
+    const payload = renderStudy.mock.calls[0]?.[0];
+    expect(payload?.context.hostContext).toEqual(validHostContext);
+    const encodedContext = new URL(
+      payload?.iframeUrl ?? "https://example.invalid",
+    ).searchParams.get("ctx");
+    expect(JSON.parse(atob(encodedContext ?? ""))).toMatchObject({
+      hostContext: validHostContext,
+    });
+    void sdk.destroy();
+  });
+
+  it("does not infer hostContext from identify traits, event payloads, URL, title, or DOM", async () => {
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([makeStudy()]));
+    const renderStudy = vi.fn<InsightfullStudyRenderer>();
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      autoTrack: false,
+      renderStudy,
+    });
+    sdk.identify("user-123", { hostContext: validHostContext });
+    window.history.replaceState({}, "", "/checkout?private=true#fragment");
+    document.title = "Northstar checkout";
+    document.body.innerHTML = '<main data-scenario="northstar_checkout_v1">Checkout review</main>';
+    await waitForSdkConfig();
+
+    sdk.track("checkout_completed", { hostContext: validHostContext });
+
+    expect(renderStudy.mock.calls[0]?.[0].context).not.toHaveProperty("hostContext");
+    void sdk.destroy();
+  });
+
+  it("omits invalid hostContext without blocking an otherwise valid launch", async () => {
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([makeStudy()]));
+    const renderStudy = vi.fn<InsightfullStudyRenderer>();
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      autoTrack: false,
+      renderStudy,
+    });
+    await waitForSdkConfig();
+
+    sdk.track("checkout_completed", undefined, {
+      hostContext: {
+        ...validHostContext,
+        state: { promoCode: "SAVE20" },
+      },
+    });
+
+    expect(renderStudy).toHaveBeenCalledTimes(1);
+    expect(renderStudy.mock.calls[0]?.[0].context).not.toHaveProperty("hostContext");
+    void sdk.destroy();
+  });
+
   it("lets a custom renderer register an iframe bridge and cleanup the registration", async () => {
     const study = makeStudy({ id: 7, shareUrl: "custom-survey" });
     mockedFetchConfig.mockResolvedValueOnce(makeConfig([study]));
@@ -379,11 +458,17 @@ describe("InsightfullSDK", () => {
     if (!firstRegistration || !secondRegistration) {
       throw new Error("Expected custom renderer to register both study iframes");
     }
-    expect(sdk.getIframeBridgeState()).toMatchObject({ active: true, studyId: 8 });
+    expect(sdk.getIframeBridgeState()).toMatchObject({
+      active: true,
+      studyId: 8,
+    });
 
     firstRegistration.cleanup();
 
-    expect(sdk.getIframeBridgeState()).toMatchObject({ active: true, studyId: 8 });
+    expect(sdk.getIframeBridgeState()).toMatchObject({
+      active: true,
+      studyId: 8,
+    });
     expect(sdk.sendIframeBridgeMessage(message)).toBe(true);
     window.dispatchEvent(
       new MessageEvent("message", {
