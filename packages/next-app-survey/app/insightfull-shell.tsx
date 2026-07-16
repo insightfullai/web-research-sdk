@@ -1,7 +1,7 @@
 "use client";
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { Minus, PanelRightClose, PanelRightOpen } from "lucide-react";
+import { Minus, PanelRightOpen } from "lucide-react";
 import type { InsightfullStudyRenderPayload } from "@insightfull/web-research-sdk";
 import { InsightfullProvider, useInsightfull } from "@insightfull/web-research-sdk-react";
 import { attachInsightfullRecorder } from "@insightfull/web-research-sdk-recorder";
@@ -75,7 +75,10 @@ function RecordingStatus() {
       return;
     }
     triggeredRef.current = true;
-    sdk.track(triggerEvent, { source: "next-app-survey", url: window.location.pathname });
+    sdk.track(triggerEvent, {
+      source: "next-app-survey",
+      url: window.location.pathname,
+    });
   }, [sdk, isReady, triggerEvent]);
 
   return (

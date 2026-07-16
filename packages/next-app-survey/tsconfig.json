@@ -11,6 +11,7 @@
     "paths": {
       "@insightfull/web-research-sdk": ["../core/src/index.ts"],
       "@insightfull/web-research-sdk-react": ["../react/src/index.ts"],
+      "@insightfull/web-research-sdk-recorder": ["../recorder/src/index.ts"],
       "@/*": ["./*"]
     }
   },
