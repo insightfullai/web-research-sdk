@@ -165,7 +165,7 @@ function StudyPanel({ activeStudy }: { activeStudy: ActiveStudy | null }) {
       </div>
       <div className="relative flex-1" id={`insightfull-study-${activeStudy.studyId}`}>
         <iframe
-          allow="clipboard-write"
+          allow="clipboard-write; microphone; camera"
           className="absolute inset-0 h-full w-full border-0"
           ref={setIframeRef}
           src={activeStudy.iframeUrl}
