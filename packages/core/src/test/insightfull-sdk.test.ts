@@ -1,4 +1,5 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
+import type { MockInstance } from "vitest";
 import { fetchConfig } from "../config-fetcher/config-fetcher.js";
 import { InsightfullSDK } from "../insightfull-sdk.js";
 import type { InsightfullStudyRenderer, SdkConfig, StudyContent } from "../types/index.js";
@@ -185,10 +186,20 @@ describe("InsightfullSDK", () => {
     );
     expect(encodedContext).not.toBeNull();
     expect(JSON.parse(atob(encodedContext ?? ""))).toMatchObject({
+      iframeBridge: {
+        nonce: expect.any(String),
+        version: 1,
+      },
       sdkEnvironmentId: "env_test",
       sdkVersion: "1.0.0",
       source: "web_sdk",
       triggerEvent: "checkout_completed",
+    });
+    expect(sdk.getIframeBridgeState()).toMatchObject({
+      active: true,
+      ready: false,
+      studyId: 1,
+      targetOrigin: "https://insightfull.ai",
     });
 
     void sdk.destroy();
@@ -219,15 +230,224 @@ describe("InsightfullSDK", () => {
     expect(payload).toBeDefined();
     expect(payload?.study).toBe(study);
     expect(payload?.iframeUrl).toContain("https://insightfull.ai/study/custom-survey?ctx=");
-    expect(payload?.context).toEqual({
+    expect(payload?.registerIframeBridge).toEqual(expect.any(Function));
+    expect(payload?.context).toMatchObject({
       visitorId: sdk.currentVisitorId,
       userId: "user-123",
       customId: { account: "acct-123" },
       customAttributes: { plan: "pro" },
+      iframeBridge: {
+        nonce: expect.any(String),
+        version: 1,
+      },
       sdkEnvironmentId: "env_test",
       sdkVersion: "1.0.0",
       source: "web_sdk",
       triggerEvent: "checkout_completed",
+    });
+
+    void sdk.destroy();
+  });
+
+  it("lets a custom renderer register an iframe bridge and cleanup the registration", async () => {
+    const study = makeStudy({ id: 7, shareUrl: "custom-survey" });
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([study]));
+    let cleanup: (() => void) | undefined;
+    let iframe: HTMLIFrameElement | undefined;
+    let nonce: string | undefined;
+    let postMessage: MockInstance<Window["postMessage"]> | undefined;
+    const renderStudy = vi.fn<InsightfullStudyRenderer>((payload) => {
+      iframe = document.createElement("iframe");
+      iframe.src = payload.iframeUrl;
+      document.body.appendChild(iframe);
+      nonce = payload.context.iframeBridge?.nonce;
+      cleanup = payload.registerIframeBridge(iframe);
+      postMessage = vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => {});
+    });
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      apiBase: "https://iframe.example.com",
+      autoTrack: false,
+      renderStudy,
+    });
+    const message = {
+      type: "insightfull.recording_event" as const,
+      version: 1 as const,
+      recordingSessionId: "session-1",
+      format: "dom-event-stream",
+      formatVersion: "1",
+      event: { sequence: 1 },
+    };
+
+    await waitForSdkConfig();
+    sdk.track("checkout_completed");
+    expect(renderStudy).toHaveBeenCalledTimes(1);
+    expect(sdk.getIframeBridgeState()).toMatchObject({
+      active: true,
+      ready: false,
+      studyId: 7,
+      targetOrigin: "https://iframe.example.com",
+    });
+
+    expect(sdk.sendIframeBridgeMessage(message)).toBe(true);
+    expect(postMessage).not.toHaveBeenCalled();
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "insightfull.iframe_ready",
+          version: 1,
+          studyId: 7,
+          nonce,
+        },
+        origin: "https://iframe.example.com",
+        source: iframe?.contentWindow ?? null,
+      }),
+    );
+
+    expect(postMessage).toHaveBeenCalledWith(message, "https://iframe.example.com");
+    expect(postMessage?.mock.calls.map((call) => call[1] as unknown)).not.toContain("*");
+
+    cleanup?.();
+
+    expect(sdk.getIframeBridgeState()).toEqual({
+      active: false,
+      queueSize: 0,
+      ready: false,
+      studyId: null,
+      targetOrigin: null,
+    });
+    expect(sdk.sendIframeBridgeMessage(message)).toBe(false);
+
+    void sdk.destroy();
+  });
+
+  it("custom renderer cleanup does not unregister a newer study bridge", async () => {
+    const firstStudy = makeStudy({
+      id: 7,
+      shareUrl: "first-survey",
+      triggers: [{ eventName: "first_event", filters: [], isActive: true, priority: 0 }],
+    });
+    const secondStudy = makeStudy({
+      id: 8,
+      shareUrl: "second-survey",
+      triggers: [{ eventName: "second_event", filters: [], isActive: true, priority: 0 }],
+    });
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([firstStudy, secondStudy]));
+    const registrations: Array<{
+      cleanup: () => void;
+      iframe: HTMLIFrameElement;
+      nonce: string | undefined;
+      postMessage: MockInstance<Window["postMessage"]>;
+      studyId: number;
+    }> = [];
+    const renderStudy = vi.fn<InsightfullStudyRenderer>((payload) => {
+      const iframe = document.createElement("iframe");
+      iframe.src = payload.iframeUrl;
+      document.body.appendChild(iframe);
+      const cleanup = payload.registerIframeBridge(iframe);
+      registrations.push({
+        cleanup,
+        iframe,
+        nonce: payload.context.iframeBridge?.nonce,
+        postMessage: vi.spyOn(iframe.contentWindow!, "postMessage").mockImplementation(() => {}),
+        studyId: payload.study.id,
+      });
+    });
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      apiBase: "https://iframe.example.com",
+      autoTrack: false,
+      renderStudy,
+    });
+    const message = {
+      type: "insightfull.recording_event" as const,
+      version: 1 as const,
+      recordingSessionId: "session-1",
+      format: "dom-event-stream",
+      formatVersion: "1",
+      event: { sequence: 1 },
+    };
+
+    await waitForSdkConfig();
+    sdk.track("first_event");
+    sdk.track("second_event");
+
+    const [firstRegistration, secondRegistration] = registrations;
+    expect(firstRegistration?.studyId).toBe(7);
+    expect(secondRegistration?.studyId).toBe(8);
+    if (!firstRegistration || !secondRegistration) {
+      throw new Error("Expected custom renderer to register both study iframes");
+    }
+    expect(sdk.getIframeBridgeState()).toMatchObject({ active: true, studyId: 8 });
+
+    firstRegistration.cleanup();
+
+    expect(sdk.getIframeBridgeState()).toMatchObject({ active: true, studyId: 8 });
+    expect(sdk.sendIframeBridgeMessage(message)).toBe(true);
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          type: "insightfull.iframe_ready",
+          version: 1,
+          studyId: 8,
+          nonce: secondRegistration.nonce,
+        },
+        origin: "https://iframe.example.com",
+        source: secondRegistration.iframe.contentWindow,
+      }),
+    );
+
+    expect(firstRegistration.postMessage).not.toHaveBeenCalled();
+    expect(secondRegistration.postMessage).toHaveBeenCalledWith(
+      message,
+      "https://iframe.example.com",
+    );
+
+    void sdk.destroy();
+  });
+
+  it("sendIframeBridgeMessage is a safe no-op when there is no active iframe", () => {
+    const sdk = InsightfullSDK.init({ clientId: "env_test", autoTrack: false });
+
+    expect(
+      sdk.sendIframeBridgeMessage({
+        type: "insightfull.recording_event",
+        version: 1,
+        recordingSessionId: "session-1",
+        format: "dom-event-stream",
+        formatVersion: "1",
+        event: { type: "click" },
+      }),
+    ).toBe(false);
+
+    void sdk.destroy();
+  });
+
+  it("returns recorder-safe context with primitive custom attributes only", () => {
+    const sdk = InsightfullSDK.init({ clientId: "env_test", autoTrack: false });
+    window.history.replaceState({}, "", "/checkout?step=shipping");
+    sdk.identify("user-123", { plan: "pro", nested: { unsafe: true } });
+    sdk.setCustomId("account", "acct-123");
+    sdk.setAttribute("seats", 5);
+    sdk.setAttribute("beta", true);
+    sdk.setAttribute("empty", null);
+    sdk.setAttribute("list", ["unsafe"]);
+
+    expect(sdk.getRecorderContext()).toEqual({
+      activeStudyId: null,
+      customAttributes: {
+        beta: true,
+        empty: null,
+        plan: "pro",
+        seats: 5,
+      },
+      customId: { account: "acct-123" },
+      path: "/checkout",
+      sdkEnvironmentId: "env_test",
+      url: "http://localhost:3000/checkout?step=shipping",
+      userId: "user-123",
+      visitorId: sdk.currentVisitorId,
     });
 
     void sdk.destroy();

@@ -6,6 +6,23 @@ import type { InsightfullStudyRenderPayload, SdkContext, StudyContent } from "..
 
 const IFRAME_ID_PREFIX = "insightfull-study-";
 
+export interface RenderStudyOptions {
+  onBeforeRemoveExisting?: (studyId: number) => void;
+  onIframeCreated?: (payload: {
+    iframe: HTMLIFrameElement;
+    iframeUrl: string;
+    nonce: string | null;
+    studyId: number;
+  }) => void;
+  registerIframeBridge?: (payload: {
+    iframe: HTMLIFrameElement;
+    iframeUrl: string;
+    nonce: string | null;
+    studyId: number;
+  }) => () => void;
+  removeDefaultStudy?: () => void;
+}
+
 /**
  * Build a base64-encoded context payload for the iframe URL.
  */
@@ -42,12 +59,21 @@ export function buildStudyRenderPayload(
   apiBase: string,
   study: StudyContent,
   context: SdkContext,
+  options: Pick<RenderStudyOptions, "registerIframeBridge" | "removeDefaultStudy"> = {},
 ): InsightfullStudyRenderPayload {
+  const iframeUrl = buildStudyIframeUrl(apiBase, study, context);
   return {
-    iframeUrl: buildStudyIframeUrl(apiBase, study, context),
+    iframeUrl,
     study,
     context,
-    removeDefaultStudy: () => removeStudy(study.id),
+    registerIframeBridge: (iframe) =>
+      options.registerIframeBridge?.({
+        iframe,
+        iframeUrl,
+        nonce: context.iframeBridge?.nonce ?? null,
+        studyId: study.id,
+      }) ?? (() => undefined),
+    removeDefaultStudy: options.removeDefaultStudy ?? (() => removeStudy(study.id)),
   };
 }
 
@@ -59,10 +85,12 @@ export function renderStudy(
   apiBase: string,
   study: StudyContent,
   context: SdkContext,
+  options: RenderStudyOptions = {},
 ): HTMLDivElement {
-  const renderPayload = buildStudyRenderPayload(apiBase, study, context);
+  const renderPayload = buildStudyRenderPayload(apiBase, study, context, options);
 
   // Remove existing iframe if present
+  options.onBeforeRemoveExisting?.(study.id);
   removeStudy(study.id);
 
   // Create host element
@@ -90,6 +118,12 @@ export function renderStudy(
 
   host.appendChild(iframe);
   document.body.appendChild(host);
+  options.onIframeCreated?.({
+    iframe,
+    iframeUrl: renderPayload.iframeUrl,
+    nonce: context.iframeBridge?.nonce ?? null,
+    studyId: study.id,
+  });
 
   return host;
 }
