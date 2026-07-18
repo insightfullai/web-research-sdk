@@ -1,0 +1,44 @@
+{
+  "name": "@insightfull/web-research-sdk-recorder",
+  "version": "1.0.0",
+  "description": "Experimental rrweb recorder integration for the Insightfull Web Research SDK.",
+  "homepage": "https://github.com/insightfullai/web-research-sdk#readme",
+  "bugs": {
+    "url": "https://github.com/insightfullai/web-research-sdk/issues"
+  },
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/insightfullai/web-research-sdk.git",
+    "directory": "packages/recorder"
+  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "main": "./dist/index.cjs",
+  "module": "./dist/index.mjs",
+  "types": "./dist/index.d.mts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.mts",
+      "import": "./dist/index.mjs",
+      "require": "./dist/index.cjs"
+    }
+  },
+  "publishConfig": {
+    "access": "public",
+    "provenance": true
+  },
+  "scripts": {
+    "build": "vp pack",
+    "pack": "vp pack",
+    "test": "vp test run",
+    "clean": "rm -rf dist"
+  },
+  "dependencies": {
+    "@insightfull/web-research-sdk": "workspace:*",
+    "rrweb": "^2.1.0"
+  }
+}

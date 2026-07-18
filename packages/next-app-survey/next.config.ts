@@ -5,7 +5,11 @@ import type { NextConfig } from "next";
 const dirname = path.dirname(fileURLToPath(import.meta.url));
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@insightfull/web-research-sdk", "@insightfull/web-research-sdk-react"],
+  transpilePackages: [
+    "@insightfull/web-research-sdk",
+    "@insightfull/web-research-sdk-react",
+    "@insightfull/web-research-sdk-recorder",
+  ],
   webpack(config) {
     config.resolve.extensionAlias = {
       ...config.resolve.extensionAlias,
@@ -19,6 +23,10 @@ const nextConfig: NextConfig = {
     config.resolve.alias["@insightfull/web-research-sdk-react"] = path.resolve(
       dirname,
       "../react/src/index.ts",
+    );
+    config.resolve.alias["@insightfull/web-research-sdk-recorder"] = path.resolve(
+      dirname,
+      "../recorder/src/index.ts",
     );
     return config;
   },

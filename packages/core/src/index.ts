@@ -13,7 +13,10 @@
 // biome-ignore lint/performance/noBarrelFile: library-level entry point
 export { InsightfullSDK } from "./insightfull-sdk.js";
 export type {
+  InsightfullDisplayStateCallback,
   InsightfullIframeBridgeState,
+  InsightfullIframeDisplayState,
+  InsightfullIframeDisplayStateMessage,
   InsightfullIframeMessage,
   InsightfullIframeReadyMessage,
   InsightfullRecorderSafeAttributeValue,
@@ -23,12 +26,22 @@ export type {
   InsightfullRecordingSessionMessage,
 } from "./iframe-bridge/iframe-bridge.js";
 export type {
+  InsightfullActivityEvidenceCallback,
+  InsightfullRecordingActivityEvidenceMessage,
+  InsightfullRecordingContextMessage,
+  InsightfullResponseCompletedCallback,
+  InsightfullResponseCompletedMessage,
+  RealAppActivityEvidenceV1,
+} from "./iframe-bridge/participant-bridge-contracts.js";
+export { REAL_APP_ACTIVITY_EVIDENCE_V1_LIMITS } from "./iframe-bridge/participant-bridge-contracts.js";
+export type {
   AttributeEvent,
   GlobalSettings,
   IdentifyEvent,
   InsightfullInitOptions,
   InsightfullStudyRenderer,
   InsightfullStudyRenderPayload,
+  InsightfullTrackOptions,
   PageviewEvent,
   SdkConfig,
   SdkContext,
@@ -42,6 +55,12 @@ export type {
   TrackEvent,
   TriggerFilter,
 } from "./types/index.js";
+export type {
+  HostContext,
+  HostContextStateValue,
+  HostContextV1,
+} from "./types/host-context.types.js";
+export { HOST_CONTEXT_V1_LIMITS, validateHostContext } from "./types/host-context.types.js";
 
 // Register globally for script-tag usage
 import { InsightfullSDK } from "./insightfull-sdk.js";

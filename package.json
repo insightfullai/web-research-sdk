@@ -14,10 +14,10 @@
     "build": "vp run -r build",
     "pack": "vp run -r pack",
     "pack:verify-exports": "node ./scripts/verify-package-exports.mjs",
-    "pack:dry-run": "npm pack --dry-run --json --workspace @insightfull/web-research-sdk && npm pack --dry-run --json --workspace @insightfull/web-research-sdk-react",
+    "pack:dry-run": "npm pack --dry-run --json --workspace @insightfull/web-research-sdk && npm pack --dry-run --json --workspace @insightfull/web-research-sdk-react && npm pack --dry-run --json --workspace @insightfull/web-research-sdk-recorder",
     "clean": "vp run -r clean",
     "ready": "vp check && vp run -r test && vp run -r build",
-    "release:check": "vp check && vp run -r test && vp run -r build && vp run -r pack && node ./scripts/verify-package-exports.mjs && npm pack --dry-run --json --workspace @insightfull/web-research-sdk && npm pack --dry-run --json --workspace @insightfull/web-research-sdk-react",
+    "release:check": "vp check && vp run -r test && vp run -r build && vp run -r pack && node ./scripts/verify-package-exports.mjs && npm pack --dry-run --json --workspace @insightfull/web-research-sdk && npm pack --dry-run --json --workspace @insightfull/web-research-sdk-react && npm pack --dry-run --json --workspace @insightfull/web-research-sdk-recorder",
     "changeset": "changeset",
     "version-packages": "changeset version",
     "release": "changeset publish"
