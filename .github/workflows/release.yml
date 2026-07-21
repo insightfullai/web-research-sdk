@@ -57,7 +57,7 @@ jobs:
       - name: Create release PR or publish
         uses: changesets/action@a45c4d594aa4e2c509dc14a9f2b3b67ba3780d0d # v1.9.0
         with:
-          version: corepack yarn version-packages && vp install
+          version: corepack yarn version-packages-ci
           publish: corepack yarn release
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
