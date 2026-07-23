@@ -89,12 +89,12 @@ More in the [installation guide](docs/quickstart/installation.md) and [React int
 
 ## Packages
 
-| Package                                                     | Description                                              | Published  |
-| ----------------------------------------------------------- | -------------------------------------------------------- | ---------- |
-| [`@insightfull/web-research-sdk`](./packages/core)          | Core runtime: bridge transport, iframe host, SDK client. | ✅ npm     |
-| [`@insightfull/web-research-sdk-react`](./packages/react)   | React provider + `useInsightfull()` hook.                | ✅ npm     |
-| [`@insightfull/web-research-sdk-recorder`](./packages/recorder) | Experimental rrweb recorder with upload and finalization hooks. | ✅ npm |
-| [`@insightfull/web-research-sdk-shared`](./packages/shared) | Workspace-only contract types between core and React.    | ❌ private |
+| Package                                                         | Description                                                     | Published  |
+| --------------------------------------------------------------- | --------------------------------------------------------------- | ---------- |
+| [`@insightfull/web-research-sdk`](./packages/core)              | Core runtime: bridge transport, iframe host, SDK client.        | ✅ npm     |
+| [`@insightfull/web-research-sdk-react`](./packages/react)       | React provider + `useInsightfull()` hook.                       | ✅ npm     |
+| [`@insightfull/web-research-sdk-recorder`](./packages/recorder) | Experimental rrweb recorder with upload and finalization hooks. | ✅ npm     |
+| [`@insightfull/web-research-sdk-shared`](./packages/shared)     | Workspace-only contract types between core and React.           | ❌ private |
 
 ## Documentation
 
