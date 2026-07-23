@@ -1,6 +1,6 @@
 {
   "name": "@insightfull/web-research-sdk",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Core Insightfull Web Research SDK bridge and client runtime.",
   "homepage": "https://github.com/insightfullai/web-research-sdk#readme",
   "bugs": {
