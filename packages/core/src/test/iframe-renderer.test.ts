@@ -60,6 +60,61 @@ describe("iframe renderer", () => {
     expect(document.body.contains(host)).toBe(true);
   });
 
+  it("applies supported appearance controls to the default renderer", () => {
+    const host = renderStudy("https://insightfull.ai", makeStudy(), makeContext(), {
+      appearance: {
+        accentColor: "#0f766e",
+        borderRadius: 20,
+        height: 700,
+        minimizedLabel: "Share feedback",
+        offset: 24,
+        placement: "bottom-left",
+        textColor: "#f8fafc",
+        width: 480,
+        zIndex: 123_456,
+      },
+    });
+
+    expect(host.style.bottom).toBe("24px");
+    expect(host.style.left).toBe("24px");
+    expect(host.style.width).toBe("480px");
+    expect(host.style.height).toBe("700px");
+    expect(host.style.borderRadius).toBe("20px");
+    expect(host.style.zIndex).toBe("123456");
+    const pill = host.querySelector<HTMLButtonElement>('[data-role="insightfull-minimized-pill"]');
+    expect(pill?.textContent).toContain("Share feedback");
+    expect(pill?.style.background).toBe("rgb(15, 118, 110)");
+    expect(pill?.style.color).toBe("rgb(248, 250, 252)");
+  });
+
+  it("restores centered placement and configured size after minimizing", () => {
+    const host = renderStudy("https://insightfull.ai", makeStudy({ id: 11 }), makeContext(), {
+      appearance: {
+        height: 720,
+        minimizedPlacement: "bottom-left",
+        offset: 16,
+        placement: "center",
+        width: 560,
+      },
+    });
+
+    expect(host.style.left).toBe("50%");
+    expect(host.style.top).toBe("50%");
+    expect(host.style.transform).toBe("translate(-50%, -50%)");
+
+    setStudyDisplayState(11, "minimized");
+    expect(host.style.bottom).toBe("16px");
+    expect(host.style.left).toBe("16px");
+    expect(host.style.transform).toBe("none");
+
+    setStudyDisplayState(11, "expanded");
+    expect(host.style.width).toBe("560px");
+    expect(host.style.height).toBe("720px");
+    expect(host.style.left).toBe("50%");
+    expect(host.style.top).toBe("50%");
+    expect(host.style.transform).toBe("translate(-50%, -50%)");
+  });
+
   it("creates an iframe with correct src including context", () => {
     const study = makeStudy({ shareUrl: "my-study" });
     const context = makeContext();
@@ -88,6 +143,10 @@ describe("iframe renderer", () => {
     expect(renderPayload.iframeUrl).toBe(iframeUrl);
     expect(renderPayload.study).toBe(study);
     expect(renderPayload.context).toEqual(context);
+    expect(renderPayload.dismiss).toEqual(expect.any(Function));
+    expect(renderPayload.expand).toEqual(expect.any(Function));
+    expect(renderPayload.minimize).toEqual(expect.any(Function));
+    expect(renderPayload.onDisplayStateChange).toEqual(expect.any(Function));
 
     const url = new URL(iframeUrl);
     const encodedContext = url.searchParams.get("ctx");

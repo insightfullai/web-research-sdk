@@ -19,18 +19,21 @@
 
 ## Introduction
 
-The Insightfull Web Research SDK embeds in any web app — via npm or a single script tag — and connects to [Insightfull Cloud](https://insightfull.ai) through a versioned bridge protocol. Trigger targeted in-product research studies from your own events with `track()` and `identify()` calls.
+The Insightfull Web Research SDK embeds in any web app through npm and connects to [Insightfull Cloud](https://insightfull.ai) through a versioned bridge protocol. Trigger targeted in-product interviews from your own events with `track()` and `identify()` calls.
 
-The host-side surface — iframe host runtime, bridge transport, protocol validation, and React integration helpers — is fully open-source under MIT. The research and interview logic runs inside Insightfull Cloud, so the SDK stays tiny (**5.6 KB gzipped, zero runtime dependencies**) and your bundle never carries proprietary code.
+The host-side surface — iframe runtime, presentation controls, bridge transport, protocol validation, and React helpers — is open-source under MIT. Research and interview logic runs inside Insightfull Cloud, keeping the core dependency-free and below its **15 KB gzipped release budget**.
 
 ## Features
 
-- **Tiny by design** — 5.6 KB gzipped, zero runtime dependencies.
+- **Tiny by design** — under 15 KB gzipped with zero runtime dependencies.
 - **Framework-agnostic core** — use the `@insightfull/web-research-sdk` runtime directly in any web app.
 - **First-class React** — `<InsightfullProvider>` + `useInsightfull()` hook, SSR-safe (Next.js friendly).
 - **TypeScript-first** — strict types ship in the box.
 - **Versioned bridge protocol** — stable contract between host SDK and Insightfull Cloud.
 - **Trigger-based studies** — fire `track("checkout_completed", { total: 99.99 })` and matching studies appear.
+- **Presentation controls** — configure placement, size, brand color, radius, offset, and minimized copy.
+- **Full host control** — own the iframe container and lifecycle with a cleanup-safe custom renderer.
+- **Operational status** — await `ready()`, inspect typed initialization errors, and reset identity safely on logout.
 
 ## Quick start
 
@@ -54,12 +57,22 @@ import { InsightfullSDK } from "@insightfull/web-research-sdk";
 const sdk = InsightfullSDK.init({
   clientId: "env_abc123",
   autoTrack: true, // automatically tracks pageviews
+  appearance: {
+    placement: "bottom-right",
+    accentColor: "#0f766e",
+    minimizedLabel: "Continue interview",
+  },
 });
+
+await sdk.ready();
 
 sdk.identify("user_123", { plan: "pro", company: "Acme" });
 
 // Triggers fire on matching events
 sdk.track("checkout_completed", { total: 99.99 });
+
+// On logout or account switching
+await sdk.reset();
 ```
 
 ### 4. React (optional)
@@ -85,7 +98,7 @@ function CheckoutButton() {
 }
 ```
 
-More in the [installation guide](docs/quickstart/installation.md) and [React integration guide](docs/quickstart/react-integration.md).
+More in the [installation guide](docs/quickstart/installation.md), [React integration guide](docs/quickstart/react-integration.md), and [Next.js guide](docs/quickstart/nextjs.md).
 
 ## Packages
 
@@ -98,15 +111,19 @@ More in the [installation guide](docs/quickstart/installation.md) and [React int
 
 ## Documentation
 
-- **[docs.insightfull.ai](https://docs.insightfull.ai)** — full hosted documentation.
+- **[Documentation map](docs/README.md)** — choose a stack-specific integration path.
 - In-repo quickstart:
   - [`installation.md`](docs/quickstart/installation.md) — install, configuration, custom attributes.
   - [`react-integration.md`](docs/quickstart/react-integration.md) — provider, hook, SSR.
+  - [`nextjs.md`](docs/quickstart/nextjs.md) — App Router provider, identity, preview deployments.
+  - [`customize-interview-experience.md`](docs/guides/customize-interview-experience.md) — configured and fully custom renderers.
+  - [`sdk-api.md`](docs/reference/sdk-api.md) — readiness, identity, events, lifecycle, and cleanup.
   - [`local-integration-runbook.md`](docs/quickstart/local-integration-runbook.md) — linking, packed validation, smoke tests.
 
 ## Recipes
 
 - [`next-app-survey`](packages/next-app-survey) — private Next.js checkout recipe that triggers `checkout_completed` and renders a real Insightfull survey iframe in a shadcn/ui Dialog.
+- [`test-app-react`](packages/test-app-react) — release-artifact integration lab covering the full participant journey, configured appearance, headless rendering, reset, recording finalization, and unavailable configuration.
 
 ## Development
 

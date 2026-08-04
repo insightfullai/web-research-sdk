@@ -21,6 +21,7 @@ export type {
 } from "./sdk-events.types.js";
 export type { InsightfullIframeDisplayState } from "../iframe-bridge/iframe-bridge.js";
 export type {
+  InsightfullAppearanceOptions,
   InsightfullInitOptions,
   InsightfullStudyRenderer,
   InsightfullStudyRenderPayload,

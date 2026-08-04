@@ -6,10 +6,10 @@ export default defineConfig({
   resolve: {
     alias: {
       "@insightfull/web-research-sdk": fileURLToPath(
-        new URL("../core/src/index.ts", import.meta.url),
+        new URL("../core/dist/index.mjs", import.meta.url),
       ),
       "@insightfull/web-research-sdk-recorder": fileURLToPath(
-        new URL("../recorder/src/index.ts", import.meta.url),
+        new URL("../recorder/dist/index.mjs", import.meta.url),
       ),
     },
   },

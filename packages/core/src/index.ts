@@ -11,7 +11,11 @@
  */
 
 // biome-ignore lint/performance/noBarrelFile: library-level entry point
-export { InsightfullSDK } from "./insightfull-sdk.js";
+export { InsightfullInitializationError, InsightfullSDK } from "./insightfull-sdk.js";
+export type {
+  InsightfullInitializationErrorCode,
+  InsightfullSdkStatus,
+} from "./insightfull-sdk.js";
 export type {
   InsightfullDisplayStateCallback,
   InsightfullIframeBridgeState,
@@ -38,6 +42,7 @@ export type {
   AttributeEvent,
   GlobalSettings,
   IdentifyEvent,
+  InsightfullAppearanceOptions,
   InsightfullInitOptions,
   InsightfullStudyRenderer,
   InsightfullStudyRenderPayload,
