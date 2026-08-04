@@ -3,19 +3,23 @@
 import {
   createContext,
   createElement,
-  useCallback,
   useContext,
   useEffect,
-  useRef,
   useState,
   type ReactNode,
 } from "react";
-import { InsightfullSDK } from "@insightfull/web-research-sdk";
+import {
+  InsightfullInitializationError,
+  InsightfullSDK,
+  type InsightfullSdkStatus,
+} from "@insightfull/web-research-sdk";
 import type { InsightfullContextValue, InsightfullProviderProps } from "./types.js";
 
 const InsightfullContext = createContext<InsightfullContextValue>({
   sdk: null,
   isReady: false,
+  status: "idle",
+  error: null,
 });
 
 /**
@@ -36,27 +40,63 @@ export function InsightfullProvider({
 }: InsightfullProviderProps): ReactNode {
   const [sdk, setSdk] = useState<InsightfullSDK | null>(null);
   const [isReady, setIsReady] = useState(false);
-  const initRef = useRef(false);
+  const [status, setStatus] = useState<InsightfullSdkStatus | "idle">("idle");
+  const [error, setError] = useState<InsightfullInitializationError | null>(null);
+  const appearance = options?.appearance;
 
-  const initSdk = useCallback(() => {
-    if (initRef.current) {
-      return;
-    }
-    initRef.current = true;
-
+  useEffect(() => {
+    let active = true;
     const instance = InsightfullSDK.init({
       clientId,
       ...options,
     });
     setSdk(instance);
-    setIsReady(true);
-  }, [clientId, options]);
+    setIsReady(false);
+    setStatus("initializing");
+    setError(null);
+    void instance.ready().then(
+      () => {
+        if (!active) return;
+        setStatus("ready");
+        setIsReady(true);
+      },
+      (reason: unknown) => {
+        if (!active) return;
+        setStatus(instance.status);
+        setError(
+          reason instanceof InsightfullInitializationError ? reason : instance.initializationError,
+        );
+      },
+    );
 
-  useEffect(() => {
-    initSdk();
-  }, [initSdk]);
+    return () => {
+      active = false;
+      void instance.destroy();
+    };
+  }, [
+    clientId,
+    options?.apiBase,
+    options?.autoTrack,
+    options?.onActivityEvidence,
+    options?.onResponseCompleted,
+    options?.renderStudy,
+    appearance?.accentColor,
+    appearance?.borderRadius,
+    appearance?.height,
+    appearance?.minimizedLabel,
+    appearance?.minimizedPlacement,
+    appearance?.offset,
+    appearance?.placement,
+    appearance?.textColor,
+    appearance?.width,
+    appearance?.zIndex,
+  ]);
 
-  return createElement(InsightfullContext.Provider, { value: { sdk, isReady } }, children);
+  return createElement(
+    InsightfullContext.Provider,
+    { value: { sdk, isReady, status, error } },
+    children,
+  );
 }
 
 /**

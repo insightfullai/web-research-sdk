@@ -13,11 +13,13 @@ function mapEvent(
   event: SdkEvent,
   visitorId: string,
   userId: string | undefined,
+  sdkVersion: string,
 ): Record<string, unknown> {
   const mapped: Record<string, unknown> = {
     eventType: event.type,
     visitorId,
     payload: event.payload,
+    sdkVersion,
     url: event.url,
   };
 
@@ -49,6 +51,7 @@ export async function sendTelemetry(
   visitorId: string,
   userId: string | null,
   batch: SdkEvent[],
+  sdkVersion: string,
 ): Promise<TelemetryResult> {
   const MAX_ATTEMPTS = 2;
   let lastError: unknown;
@@ -63,7 +66,7 @@ export async function sendTelemetry(
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({
           clientId,
-          events: batch.map((event) => mapEvent(event, visitorId, userId ?? undefined)),
+          events: batch.map((event) => mapEvent(event, visitorId, userId ?? undefined, sdkVersion)),
         }),
         signal: controller.signal,
       });

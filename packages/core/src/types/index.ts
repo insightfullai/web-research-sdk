@@ -1,4 +1,14 @@
 export type {
+  InsightfullDeliveryEvaluation,
+  InsightfullDeliveryEvaluationCallback,
+  InsightfullDeliveryFilterEvaluation,
+  InsightfullDeliveryOutcome,
+  InsightfullDeliveryReasonCode,
+  InsightfullDeliveryStudyEvaluation,
+  InsightfullDeliveryTriggerEvaluation,
+  InsightfullExplainDeliveryOptions,
+} from "./delivery-diagnostics.types.js";
+export type {
   GlobalSettings,
   SdkConfig,
   SdkEnvironment,
@@ -7,12 +17,14 @@ export type {
   StudySection,
   StudyTrigger,
   TriggerFilter,
+  TriggerFilterOperator,
 } from "./sdk-config.types.js";
 export type { SdkContext } from "./sdk-context.types.js";
 export type { HostContext, HostContextStateValue, HostContextV1 } from "./host-context.types.js";
 export { HOST_CONTEXT_V1_LIMITS, validateHostContext } from "./host-context.types.js";
 export type {
   AttributeEvent,
+  DeliveryEvent,
   IdentifyEvent,
   PageviewEvent,
   SdkEvent,
@@ -21,6 +33,7 @@ export type {
 } from "./sdk-events.types.js";
 export type { InsightfullIframeDisplayState } from "../iframe-bridge/iframe-bridge.js";
 export type {
+  InsightfullAppearanceOptions,
   InsightfullInitOptions,
   InsightfullStudyRenderer,
   InsightfullStudyRenderPayload,

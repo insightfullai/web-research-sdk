@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   evaluateTriggers,
+  evaluateTriggersWithDiagnostics,
   isCooldownExpired,
   matchesFilter,
   matchesUrl,
@@ -109,6 +110,173 @@ describe("evaluateTriggers", () => {
   });
 });
 
+describe("evaluateTriggersWithDiagnostics", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("explains a matched study without including participant or configured values", () => {
+    const study = makeStudy({
+      triggers: [
+        {
+          eventName: "checkout_completed",
+          filters: [{ property: "account.plan", operator: "equals", value: "enterprise" }],
+          isActive: true,
+          priority: 4,
+        },
+      ],
+    });
+
+    const result = evaluateTriggersWithDiagnostics(
+      "checkout_completed",
+      { account: { plan: "enterprise" } },
+      {},
+      [study],
+      defaultGlobalSettings,
+      "/checkout",
+      1_000,
+    );
+
+    expect(result.matchedStudy).toBe(study);
+    expect(result.evaluation).toMatchObject({
+      eventName: "checkout_completed",
+      outcome: "matched",
+      pathname: "/checkout",
+      reasonCode: "matched",
+      selectedStudyId: 1,
+      timestamp: 1_000,
+    });
+    expect(result.evaluation.studies[0]?.triggers[0]?.filters).toEqual([
+      { matched: true, operator: "equals", property: "account.plan" },
+    ]);
+    expect(JSON.stringify(result.evaluation)).not.toContain("enterprise");
+  });
+
+  it("reports the most actionable mismatch reason", () => {
+    const study = makeStudy({
+      triggers: [
+        {
+          eventName: "checkout_completed",
+          filters: [{ property: "plan", operator: "equals", value: "pro" }],
+          isActive: true,
+          priority: 0,
+        },
+      ],
+    });
+
+    const { evaluation } = evaluateTriggersWithDiagnostics(
+      "checkout_completed",
+      { plan: "free" },
+      {},
+      [study],
+      defaultGlobalSettings,
+    );
+
+    expect(evaluation).toMatchObject({
+      outcome: "not_matched",
+      reasonCode: "no_matching_study",
+      selectedStudyId: null,
+    });
+    expect(evaluation.studies[0]).toMatchObject({
+      outcome: "not_matched",
+      reasonCode: "filter_mismatch",
+    });
+    expect(evaluation.studies[0]?.triggers[0]).toMatchObject({
+      outcome: "not_matched",
+      reasonCode: "filter_mismatch",
+    });
+  });
+
+  it("marks lower-priority matches as suppressed", () => {
+    const lowPriorityStudy = makeStudy({
+      id: 1,
+      triggers: [{ eventName: "checkout", filters: [], isActive: true, priority: 1 }],
+    });
+    const highPriorityStudy = makeStudy({
+      id: 2,
+      triggers: [{ eventName: "checkout", filters: [], isActive: true, priority: 10 }],
+    });
+
+    const result = evaluateTriggersWithDiagnostics(
+      "checkout",
+      {},
+      {},
+      [lowPriorityStudy, highPriorityStudy],
+      defaultGlobalSettings,
+    );
+
+    expect(result.matchedStudy?.id).toBe(2);
+    expect(result.evaluation.studies).toEqual([
+      expect.objectContaining({ studyId: 2, outcome: "matched", reasonCode: "matched" }),
+      expect.objectContaining({
+        studyId: 1,
+        outcome: "suppressed",
+        reasonCode: "another_study_selected",
+      }),
+    ]);
+  });
+
+  it("distinguishes inactive, URL, cooldown, and missing-trigger exclusions", () => {
+    localStorage.setItem("insightfull_cooldown_4", "900");
+    const studies = [
+      makeStudy({ id: 1, triggers: [] }),
+      makeStudy({
+        id: 2,
+        triggers: [{ eventName: "checkout", filters: [], isActive: false, priority: 2 }],
+      }),
+      makeStudy({
+        id: 3,
+        triggers: [
+          {
+            eventName: "/settings/*",
+            filters: [],
+            isActive: true,
+            matchOn: "url",
+            priority: 3,
+          },
+        ],
+      }),
+      makeStudy({ id: 4 }),
+    ];
+
+    const { evaluation } = evaluateTriggersWithDiagnostics(
+      "pageview",
+      {},
+      {},
+      studies,
+      defaultGlobalSettings,
+      "/checkout",
+      1_000,
+    );
+
+    expect(
+      Object.fromEntries(evaluation.studies.map((study) => [study.studyId, study.reasonCode])),
+    ).toEqual({
+      1: "study_has_no_triggers",
+      2: "trigger_inactive",
+      3: "url_mismatch",
+      4: "cooldown_active",
+    });
+  });
+
+  it("returns a distinct empty-environment explanation", () => {
+    const { evaluation } = evaluateTriggersWithDiagnostics(
+      "checkout",
+      {},
+      {},
+      [],
+      defaultGlobalSettings,
+    );
+
+    expect(evaluation).toMatchObject({
+      outcome: "not_matched",
+      reasonCode: "no_studies",
+      selectedStudyId: null,
+      studies: [],
+    });
+  });
+});
+
 describe("matchesFilter", () => {
   it("matches 'equals' operator with exact value", () => {
     const filter: TriggerFilter = {
@@ -166,6 +334,25 @@ describe("matchesFilter", () => {
       operator: "exists",
     };
     expect(matchesFilter(filter, { a: {} }, {})).toBe(false);
+  });
+
+  it.each([
+    ["not_equals", "plan", { plan: "free" }, "pro", true],
+    ["not_equals", "plan", { plan: "pro" }, "pro", false],
+    ["not_exists", "plan", {}, undefined, true],
+    ["not_exists", "plan", { plan: "pro" }, undefined, false],
+    ["contains", "roles", { roles: ["admin", "researcher"] }, "admin", true],
+    ["contains", "roles", { roles: ["researcher"] }, "admin", false],
+    ["contains", "company", { company: "Insightfull Labs" }, "full", true],
+    ["not_contains", "company", { company: "Insightfull Labs" }, "Sprig", true],
+    ["not_contains", "company", { company: "Insightfull Labs" }, "full", false],
+    ["greater_than", "seats", { seats: 25 }, 10, true],
+    ["greater_than", "seats", { seats: 10 }, 10, false],
+    ["greater_than", "seats", { seats: "25" }, 10, false],
+    ["less_than", "seats", { seats: 5 }, 10, true],
+    ["less_than", "seats", { seats: 10 }, 10, false],
+  ] as const)("evaluates %s for %s", (operator, property, attributes, value, expected) => {
+    expect(matchesFilter({ operator, property, value }, attributes, {})).toBe(expected);
   });
 
   it("filter evaluation — all filters must match", () => {
@@ -361,6 +548,44 @@ describe("evaluateTriggers with matchOn", () => {
     const result = evaluateTriggers("pageview", {}, {}, [study], defaultGlobalSettings);
 
     expect(result).toBeNull();
+  });
+
+  it("applies audience filters to URL triggers", () => {
+    const study = makeStudy({
+      triggers: [
+        {
+          eventName: "/pricing",
+          filters: [
+            { operator: "equals", property: "plan", value: "free" },
+            { operator: "greater_than", property: "seats", value: 2 },
+          ],
+          isActive: true,
+          matchOn: "url",
+          priority: 1,
+        },
+      ],
+    });
+
+    expect(
+      evaluateTriggers(
+        "pageview",
+        { plan: "free", seats: 3 },
+        {},
+        [study],
+        defaultGlobalSettings,
+        "/pricing",
+      ),
+    ).toBe(study);
+    expect(
+      evaluateTriggers(
+        "pageview",
+        { plan: "pro", seats: 3 },
+        {},
+        [study],
+        defaultGlobalSettings,
+        "/pricing",
+      ),
+    ).toBeNull();
   });
 
   it("defaults to event matching when matchOn is undefined", () => {

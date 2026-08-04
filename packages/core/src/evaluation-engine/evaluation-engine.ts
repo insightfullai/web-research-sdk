@@ -1,22 +1,21 @@
-/**
- * Local evaluation engine — matches tracked events against study triggers.
- * All evaluation happens client-side with no server round-trip per event.
- */
-
-import type { GlobalSettings, StudyContent, TriggerFilter } from "../types/index.js";
+import type {
+  GlobalSettings,
+  InsightfullDeliveryEvaluation,
+  InsightfullDeliveryReasonCode,
+  InsightfullDeliveryStudyEvaluation,
+  InsightfullDeliveryTriggerEvaluation,
+  StudyContent,
+  StudyTrigger,
+  TriggerFilter,
+} from "../types/index.js";
 
 const COOLDOWN_PREFIX = "insightfull_cooldown_";
 
-/**
- * Resolve a nested property value using dot notation.
- * e.g. "user.plan" resolves attributes.user.plan
- */
 function resolveProperty(
   property: string,
   attributes: Record<string, unknown>,
   customId: Record<string, string>,
 ): unknown {
-  // Special prefix: customId.* resolves from customId map
   if (property.startsWith("customId.")) {
     const key = property.slice("customId.".length);
     return customId[key];
@@ -39,9 +38,6 @@ function resolveProperty(
   return current;
 }
 
-/**
- * Check if a single filter matches the current attributes and custom IDs.
- */
 export function matchesFilter(
   filter: TriggerFilter,
   attributes: Record<string, unknown>,
@@ -49,11 +45,38 @@ export function matchesFilter(
 ): boolean {
   const resolvedValue = resolveProperty(filter.property, attributes, customId);
 
+  const contains = (): boolean => {
+    if (typeof resolvedValue === "string" && typeof filter.value === "string") {
+      return resolvedValue.includes(filter.value);
+    }
+    if (Array.isArray(resolvedValue)) {
+      return resolvedValue.includes(filter.value);
+    }
+    return false;
+  };
+  const numericComparison = (predicate: (left: number, right: number) => boolean): boolean => {
+    const left = typeof resolvedValue === "number" ? resolvedValue : Number.NaN;
+    const right = typeof filter.value === "number" ? filter.value : Number(filter.value);
+    return Number.isFinite(left) && Number.isFinite(right) && predicate(left, right);
+  };
+
   switch (filter.operator) {
+    case "contains":
+      return contains();
     case "equals":
       return resolvedValue === filter.value;
     case "exists":
       return resolvedValue !== undefined && resolvedValue !== null;
+    case "greater_than":
+      return numericComparison((left, right) => left > right);
+    case "less_than":
+      return numericComparison((left, right) => left < right);
+    case "not_contains":
+      return !contains();
+    case "not_equals":
+      return resolvedValue !== filter.value;
+    case "not_exists":
+      return resolvedValue === undefined || resolvedValue === null;
     default:
       console.warn(`Unrecognized filter operator: ${String(filter.operator)}`);
       return false;
@@ -64,7 +87,11 @@ export function matchesFilter(
  * Check if the cooldown for a study has expired.
  * Returns true if the study can be shown (cooldown expired or never set).
  */
-export function isCooldownExpired(studyId: number, cooldownDays: number): boolean {
+export function isCooldownExpired(
+  studyId: number,
+  cooldownDays: number,
+  now = Date.now(),
+): boolean {
   try {
     const key = `${COOLDOWN_PREFIX}${studyId}`;
     const lastDisplay = localStorage.getItem(key);
@@ -75,7 +102,7 @@ export function isCooldownExpired(studyId: number, cooldownDays: number): boolea
     const parsed = Number.parseInt(lastDisplay, 10);
     if (!Number.isFinite(parsed)) return true; // invalid value, treat as expired
     const cooldownMs = cooldownDays * 24 * 60 * 60 * 1000;
-    return Date.now() - parsed > cooldownMs;
+    return now - parsed > cooldownMs;
   } catch {
     // localStorage unavailable (SSR, privacy mode, etc.)
     return true;
@@ -107,6 +134,175 @@ export function matchesUrl(pattern: string, pathname: string): boolean {
   return regex.test(pathname);
 }
 
+export interface TriggerEvaluationResult {
+  evaluation: InsightfullDeliveryEvaluation;
+  matchedStudy: StudyContent | null;
+}
+
+function evaluateTrigger(
+  trigger: StudyTrigger,
+  index: number,
+  eventName: string,
+  attributes: Record<string, unknown>,
+  customId: Record<string, string>,
+  pathname: string,
+): InsightfullDeliveryTriggerEvaluation {
+  const filterEvaluations = trigger.filters.map((filter) => ({
+    matched: matchesFilter(filter, attributes, customId),
+    operator: filter.operator,
+    property: filter.property,
+  }));
+  const base = {
+    eventName: trigger.eventName,
+    filters: filterEvaluations,
+    index,
+    isActive: trigger.isActive,
+    matchOn: trigger.matchOn ?? "event",
+    priority: trigger.priority,
+  } as const;
+
+  if (!trigger.isActive) {
+    return { ...base, outcome: "not_matched", reasonCode: "trigger_inactive" };
+  }
+
+  if (trigger.matchOn === "url") {
+    if (eventName !== "pageview" || !matchesUrl(trigger.eventName, pathname)) {
+      return { ...base, outcome: "not_matched", reasonCode: "url_mismatch" };
+    }
+  } else if (trigger.eventName !== eventName) {
+    return { ...base, outcome: "not_matched", reasonCode: "event_mismatch" };
+  }
+
+  if (filterEvaluations.some((filter) => !filter.matched)) {
+    return { ...base, outcome: "not_matched", reasonCode: "filter_mismatch" };
+  }
+
+  return { ...base, outcome: "matched", reasonCode: "matched" };
+}
+
+function getStudyReasonCode(
+  triggers: readonly InsightfullDeliveryTriggerEvaluation[],
+): InsightfullDeliveryReasonCode {
+  const reasonPriority: readonly InsightfullDeliveryReasonCode[] = [
+    "filter_mismatch",
+    "url_mismatch",
+    "event_mismatch",
+    "trigger_inactive",
+  ];
+  for (const reasonCode of reasonPriority) {
+    if (triggers.some((trigger) => trigger.reasonCode === reasonCode)) {
+      return reasonCode;
+    }
+  }
+  return "no_matching_study";
+}
+
+function evaluateStudy(
+  study: StudyContent,
+  eventName: string,
+  attributes: Record<string, unknown>,
+  customId: Record<string, string>,
+  pathname: string,
+  cooldownDays: number,
+  now: number,
+): InsightfullDeliveryStudyEvaluation {
+  if (study.triggers.length === 0) {
+    return {
+      outcome: "not_matched",
+      reasonCode: "study_has_no_triggers",
+      studyId: study.id,
+      triggers: [],
+    };
+  }
+
+  if (!isCooldownExpired(study.id, cooldownDays, now)) {
+    return {
+      outcome: "suppressed",
+      reasonCode: "cooldown_active",
+      studyId: study.id,
+      triggers: [],
+    };
+  }
+
+  const triggers = study.triggers.map((trigger, index) =>
+    evaluateTrigger(trigger, index, eventName, attributes, customId, pathname),
+  );
+  const didMatch = triggers.some((trigger) => trigger.outcome === "matched");
+  return {
+    outcome: didMatch ? "matched" : "not_matched",
+    reasonCode: didMatch ? "matched" : getStudyReasonCode(triggers),
+    studyId: study.id,
+    triggers,
+  };
+}
+
+/** Evaluate every configured study and return a privacy-safe decision trace. */
+export function evaluateTriggersWithDiagnostics(
+  eventName: string,
+  attributes: Record<string, unknown>,
+  customId: Record<string, string>,
+  studies: StudyContent[],
+  globalSettings: GlobalSettings,
+  pathname = "",
+  now = Date.now(),
+): TriggerEvaluationResult {
+  const prioritizedStudies = studies
+    .map((study, index) => ({
+      index,
+      maxPriority:
+        study.triggers.length === 0
+          ? Number.NEGATIVE_INFINITY
+          : Math.max(...study.triggers.map((trigger) => trigger.priority)),
+      study,
+    }))
+    .sort((left, right) => right.maxPriority - left.maxPriority || left.index - right.index);
+
+  let matchedStudy: StudyContent | null = null;
+  const studyEvaluations: InsightfullDeliveryStudyEvaluation[] = [];
+  for (const { study } of prioritizedStudies) {
+    const evaluation = evaluateStudy(
+      study,
+      eventName,
+      attributes,
+      customId,
+      pathname,
+      globalSettings.cooldownDays,
+      now,
+    );
+    if (evaluation.outcome !== "matched") {
+      studyEvaluations.push(evaluation);
+    } else if (!matchedStudy) {
+      matchedStudy = study;
+      studyEvaluations.push(evaluation);
+    } else {
+      studyEvaluations.push({
+        ...evaluation,
+        outcome: "suppressed",
+        reasonCode: "another_study_selected",
+      });
+    }
+  }
+
+  const reasonCode: InsightfullDeliveryReasonCode = matchedStudy
+    ? "matched"
+    : studies.length === 0
+      ? "no_studies"
+      : "no_matching_study";
+
+  return {
+    evaluation: {
+      eventName,
+      outcome: matchedStudy ? "matched" : "not_matched",
+      pathname,
+      reasonCode,
+      selectedStudyId: matchedStudy?.id ?? null,
+      studies: studyEvaluations,
+      timestamp: now,
+    },
+    matchedStudy,
+  };
+}
+
 /**
  * Evaluate all triggers across all studies for a given event.
  * Returns the first matching study (sorted by priority, highest first)
@@ -120,48 +316,12 @@ export function evaluateTriggers(
   globalSettings: GlobalSettings,
   currentUrl?: string,
 ): StudyContent | null {
-  // Sort studies by their highest-priority trigger (descending)
-  const studiesWithPriority = studies
-    .filter((study) => study.triggers.length > 0)
-    .map((study) => ({
-      study,
-      maxPriority: Math.max(...study.triggers.map((t) => t.priority)),
-    }))
-    .sort((a, b) => b.maxPriority - a.maxPriority);
-
-  for (const { study } of studiesWithPriority) {
-    // Check cooldown for this study
-    if (!isCooldownExpired(study.id, globalSettings.cooldownDays)) {
-      continue;
-    }
-
-    // Find a matching trigger
-    const matchingTrigger = study.triggers.find((trigger) => {
-      if (!trigger.isActive) {
-        return false;
-      }
-
-      // URL-based trigger matching
-      if (trigger.matchOn === "url") {
-        if (eventName !== "pageview" || !currentUrl) {
-          return false;
-        }
-        return matchesUrl(trigger.eventName, currentUrl);
-      }
-
-      // Default: event-based matching
-      if (trigger.eventName !== eventName) {
-        return false;
-      }
-
-      // All filters must match
-      return trigger.filters.every((filter) => matchesFilter(filter, attributes, customId));
-    });
-
-    if (matchingTrigger) {
-      return study;
-    }
-  }
-
-  return null;
+  return evaluateTriggersWithDiagnostics(
+    eventName,
+    attributes,
+    customId,
+    studies,
+    globalSettings,
+    currentUrl,
+  ).matchedStudy;
 }

@@ -11,7 +11,11 @@
  */
 
 // biome-ignore lint/performance/noBarrelFile: library-level entry point
-export { InsightfullSDK } from "./insightfull-sdk.js";
+export { InsightfullInitializationError, InsightfullSDK } from "./insightfull-sdk.js";
+export type {
+  InsightfullInitializationErrorCode,
+  InsightfullSdkStatus,
+} from "./insightfull-sdk.js";
 export type {
   InsightfullDisplayStateCallback,
   InsightfullIframeBridgeState,
@@ -36,8 +40,18 @@ export type {
 export { REAL_APP_ACTIVITY_EVIDENCE_V1_LIMITS } from "./iframe-bridge/participant-bridge-contracts.js";
 export type {
   AttributeEvent,
+  DeliveryEvent,
   GlobalSettings,
   IdentifyEvent,
+  InsightfullAppearanceOptions,
+  InsightfullDeliveryEvaluation,
+  InsightfullDeliveryEvaluationCallback,
+  InsightfullDeliveryFilterEvaluation,
+  InsightfullDeliveryOutcome,
+  InsightfullDeliveryReasonCode,
+  InsightfullDeliveryStudyEvaluation,
+  InsightfullDeliveryTriggerEvaluation,
+  InsightfullExplainDeliveryOptions,
   InsightfullInitOptions,
   InsightfullStudyRenderer,
   InsightfullStudyRenderPayload,
@@ -54,6 +68,7 @@ export type {
   StudyTrigger,
   TrackEvent,
   TriggerFilter,
+  TriggerFilterOperator,
 } from "./types/index.js";
 export type {
   HostContext,
