@@ -1,6 +1,6 @@
 {
   "name": "@insightfull/web-research-sdk-recorder",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "Experimental rrweb recorder integration for the Insightfull Web Research SDK.",
   "homepage": "https://github.com/insightfullai/web-research-sdk#readme",
   "bugs": {

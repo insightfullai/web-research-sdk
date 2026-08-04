@@ -1,6 +1,6 @@
 {
   "name": "@insightfull/web-research-sdk-react",
-  "version": "1.0.0",
+  "version": "1.1.0",
   "description": "React integration primitives for the Insightfull Web Research SDK.",
   "homepage": "https://github.com/insightfullai/web-research-sdk#readme",
   "bugs": {
