@@ -40,9 +40,18 @@ export type {
 export { REAL_APP_ACTIVITY_EVIDENCE_V1_LIMITS } from "./iframe-bridge/participant-bridge-contracts.js";
 export type {
   AttributeEvent,
+  DeliveryEvent,
   GlobalSettings,
   IdentifyEvent,
   InsightfullAppearanceOptions,
+  InsightfullDeliveryEvaluation,
+  InsightfullDeliveryEvaluationCallback,
+  InsightfullDeliveryFilterEvaluation,
+  InsightfullDeliveryOutcome,
+  InsightfullDeliveryReasonCode,
+  InsightfullDeliveryStudyEvaluation,
+  InsightfullDeliveryTriggerEvaluation,
+  InsightfullExplainDeliveryOptions,
   InsightfullInitOptions,
   InsightfullStudyRenderer,
   InsightfullStudyRenderPayload,

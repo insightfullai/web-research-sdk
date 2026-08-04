@@ -8,6 +8,7 @@ import type {
   InsightfullResponseCompletedCallback,
 } from "../iframe-bridge/participant-bridge-contracts.js";
 import type { HostContextV1 } from "./host-context.types.js";
+import type { InsightfullDeliveryEvaluationCallback } from "./delivery-diagnostics.types.js";
 import type { StudyContent } from "./sdk-config.types.js";
 import type { SdkContext } from "./sdk-context.types.js";
 
@@ -68,6 +69,8 @@ export interface InsightfullInitOptions {
   onActivityEvidence?: InsightfullActivityEvidenceCallback;
   /** Called once for each server-confirmed response completion from the active study iframe. */
   onResponseCompleted?: InsightfullResponseCompletedCallback;
+  /** Called after each real SDK delivery evaluation with a privacy-safe decision trace. */
+  onDeliveryEvaluation?: InsightfullDeliveryEvaluationCallback;
   /** Optional custom renderer. When provided, the SDK will not create the default iframe. */
   renderStudy?: InsightfullStudyRenderer;
 }

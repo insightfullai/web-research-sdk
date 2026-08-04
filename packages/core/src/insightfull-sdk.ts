@@ -1,6 +1,10 @@
 import { AutoTracker } from "./auto-tracker/auto-tracker.js";
 import { fetchConfig } from "./config-fetcher/config-fetcher.js";
-import { evaluateTriggers, setCooldown } from "./evaluation-engine/evaluation-engine.js";
+import {
+  evaluateTriggersWithDiagnostics,
+  type TriggerEvaluationResult,
+  setCooldown,
+} from "./evaluation-engine/evaluation-engine.js";
 import { EventQueue } from "./event-queue/event-queue.js";
 import { InsightfullIframeBridge } from "./iframe-bridge/iframe-bridge.js";
 import {
@@ -25,6 +29,11 @@ import type {
 } from "./iframe-bridge/participant-bridge-contracts.js";
 import type {
   GlobalSettings,
+  InsightfullDeliveryEvaluation,
+  InsightfullDeliveryEvaluationCallback,
+  InsightfullDeliveryOutcome,
+  InsightfullDeliveryReasonCode,
+  InsightfullExplainDeliveryOptions,
   InsightfullAppearanceOptions,
   HostContextV1,
   InsightfullInitOptions,
@@ -36,12 +45,15 @@ import type {
   StudyContent,
 } from "./types/index.js";
 import { validateHostContext } from "./types/host-context.types.js";
+import { SDK_VERSION } from "./version.js";
 
 const FLUSH_INTERVAL_MS = 5000;
 const MAX_QUEUE_SIZE = 100;
 const BATCH_SIZE = 20;
-const SDK_VERSION = "1.0.0";
 const VISITOR_ID_KEY = "insightfull_visitor_id";
+const MAX_DELIVERY_STUDIES = 20;
+const MAX_DELIVERY_TRIGGERS = 10;
+const MAX_DELIVERY_FILTERS = 10;
 
 export type InsightfullSdkStatus = "destroyed" | "initializing" | "ready" | "unavailable";
 export type InsightfullInitializationErrorCode = "configuration_unavailable" | "sdk_destroyed";
@@ -79,6 +91,7 @@ export class InsightfullSDK {
   private readonly studyRenderer: InsightfullStudyRenderer | undefined;
   private readonly activityEvidenceCallbacks = new Set<InsightfullActivityEvidenceCallback>();
   private readonly responseCompletedCallbacks = new Set<InsightfullResponseCompletedCallback>();
+  private readonly deliveryEvaluationCallbacks = new Set<InsightfullDeliveryEvaluationCallback>();
   private readonly displayStateCallbacks = new Set<
     (state: InsightfullIframeDisplayState) => void
   >();
@@ -86,6 +99,7 @@ export class InsightfullSDK {
   private activeStudyId: number | null = null;
   private activeStudyDisplayState: InsightfullIframeDisplayState | null = null;
   private directLaunchActive = false;
+  private _lastDeliveryEvaluation: InsightfullDeliveryEvaluation | null = null;
   private destroyed = false;
 
   get baseApiUrl(): string {
@@ -128,6 +142,10 @@ export class InsightfullSDK {
     return this._initializationError;
   }
 
+  get lastDeliveryEvaluation(): InsightfullDeliveryEvaluation | null {
+    return this._lastDeliveryEvaluation;
+  }
+
   get queueSize(): number {
     return this.eventQueue.size();
   }
@@ -166,6 +184,23 @@ export class InsightfullSDK {
     }
     this.responseCompletedCallbacks.add(callback);
     return () => this.responseCompletedCallbacks.delete(callback);
+  }
+
+  onDeliveryEvaluation(callback: InsightfullDeliveryEvaluationCallback): () => void {
+    if (this.destroyed) {
+      return () => undefined;
+    }
+    this.deliveryEvaluationCallbacks.add(callback);
+    return () => this.deliveryEvaluationCallbacks.delete(callback);
+  }
+
+  /** Explain the current delivery decision without displaying a study or changing cooldowns. */
+  explainDelivery(
+    eventName: string,
+    options?: InsightfullExplainDeliveryOptions,
+  ): InsightfullDeliveryEvaluation {
+    return this.evaluateDelivery(eventName, options?.pathname ?? this.getCurrentPathname())
+      .evaluation;
   }
 
   sendIframeBridgeMessage(message: InsightfullIframeMessage): boolean {
@@ -207,6 +242,9 @@ export class InsightfullSDK {
     }
     if (options.onResponseCompleted) {
       this.responseCompletedCallbacks.add(options.onResponseCompleted);
+    }
+    if (options.onDeliveryEvaluation) {
+      this.deliveryEvaluationCallbacks.add(options.onDeliveryEvaluation);
     }
 
     this.iframeBridge = new InsightfullIframeBridge({
@@ -366,6 +404,7 @@ export class InsightfullSDK {
     this.iframeBridge.destroy();
     this.activityEvidenceCallbacks.clear();
     this.responseCompletedCallbacks.clear();
+    this.deliveryEvaluationCallbacks.clear();
 
     await this.eventQueue.flush();
   }
@@ -410,6 +449,7 @@ export class InsightfullSDK {
         "configuration_unavailable",
         "Insightfull configuration is unavailable for this environment",
       );
+      this.flushPendingTriggerEvaluations();
       return;
     }
 
@@ -542,6 +582,23 @@ export class InsightfullSDK {
     }
   }
 
+  private notifyDeliveryEvaluation(evaluation: InsightfullDeliveryEvaluation): void {
+    this._lastDeliveryEvaluation = evaluation;
+    for (const callback of this.deliveryEvaluationCallbacks) {
+      try {
+        callback(evaluation);
+      } catch {
+        // Diagnostics callbacks cannot interrupt participant delivery.
+      }
+    }
+    this.enqueueEvent({
+      payload: this.toDeliveryTelemetryPayload(evaluation),
+      timestamp: evaluation.timestamp,
+      type: "delivery",
+      url: evaluation.pathname,
+    });
+  }
+
   private async flushBatch(batch: SdkEvent[]): Promise<void> {
     await sendTelemetry(
       this.apiBase,
@@ -554,31 +611,28 @@ export class InsightfullSDK {
   }
 
   private evaluateAndShow(eventName: string, hostContext?: HostContextV1): void {
-    if (this.directLaunchActive) {
-      return;
-    }
-    if (!this.config) {
+    const result = this.evaluateDelivery(eventName, this.getCurrentPathname());
+    if (result.evaluation.reasonCode === "configuration_pending") {
       this.pendingTriggerEvaluations.push({
         eventName,
         ...(hostContext ? { hostContext } : {}),
       });
+      this.notifyDeliveryEvaluation(result.evaluation);
+      return;
+    }
+    if (!result.matchedStudy) {
+      this.notifyDeliveryEvaluation(result.evaluation);
       return;
     }
 
-    const globalSettings: GlobalSettings = this.config.globalSettings;
-    const matchedStudy = evaluateTriggers(
-      eventName,
-      this.attributes,
-      this.customId,
-      this.config.studies,
-      globalSettings,
-      window.location.pathname,
-    );
-
-    if (matchedStudy) {
-      this.showStudy(matchedStudy, eventName, hostContext);
-      setCooldown(matchedStudy.id);
+    const didPresent = this.showStudy(result.matchedStudy, eventName, hostContext);
+    const evaluation: InsightfullDeliveryEvaluation = didPresent
+      ? { ...result.evaluation, outcome: "presented" }
+      : { ...result.evaluation, outcome: "suppressed", reasonCode: "renderer_failed" };
+    if (didPresent) {
+      setCooldown(result.matchedStudy.id);
     }
+    this.notifyDeliveryEvaluation(evaluation);
   }
 
   private launchDirectStudy(): void {
@@ -606,8 +660,24 @@ export class InsightfullSDK {
       return;
     }
 
-    this.showStudy(study, "direct_launch", undefined, agentLaunchToken);
+    const didPresent = this.showStudy(study, "direct_launch", undefined, agentLaunchToken);
     this.directLaunchActive = this.activeStudyId === study.id;
+    this.notifyDeliveryEvaluation({
+      eventName: "direct_launch",
+      outcome: didPresent ? "presented" : "suppressed",
+      pathname: this.getCurrentPathname(),
+      reasonCode: didPresent ? "matched" : "renderer_failed",
+      selectedStudyId: study.id,
+      studies: [
+        {
+          outcome: didPresent ? "matched" : "suppressed",
+          reasonCode: didPresent ? "matched" : "renderer_failed",
+          studyId: study.id,
+          triggers: [],
+        },
+      ],
+      timestamp: Date.now(),
+    });
     if (!agentLaunchToken) {
       return;
     }
@@ -626,7 +696,7 @@ export class InsightfullSDK {
     triggerEvent: string,
     hostContext?: HostContextV1,
     agentLaunchToken?: string,
-  ): void {
+  ): boolean {
     this.cleanupActiveStudy();
     const iframeBridgeNonce = this.generateId();
     this.activeStudyId = study.id;
@@ -671,21 +741,144 @@ export class InsightfullSDK {
         this.customRendererCleanup = this.studyRenderer(renderPayload) ?? null;
       } catch {
         this.cleanupActiveStudy();
+        return false;
       }
-      return;
+      return true;
     }
 
     this.iframeBridge.unregisterIframe();
-    renderStudy(this.apiBase, study, context, {
-      ...(this.appearance ? { appearance: this.appearance } : {}),
-      onBeforeRemoveExisting: () => this.iframeBridge.unregisterIframe(study.id),
-      onDisplayStateRequest: (state) => this.setActiveStudyDisplayState(state),
-      onIframeCreated: ({ iframe, iframeUrl, nonce, studyId }) => {
-        if (!nonce) {
-          return;
-        }
-        this.iframeBridge.registerIframe({ iframe, iframeUrl, nonce, studyId });
-      },
-    });
+    try {
+      renderStudy(this.apiBase, study, context, {
+        ...(this.appearance ? { appearance: this.appearance } : {}),
+        onBeforeRemoveExisting: () => this.iframeBridge.unregisterIframe(study.id),
+        onDisplayStateRequest: (state) => this.setActiveStudyDisplayState(state),
+        onIframeCreated: ({ iframe, iframeUrl, nonce, studyId }) => {
+          if (!nonce) {
+            return;
+          }
+          this.iframeBridge.registerIframe({ iframe, iframeUrl, nonce, studyId });
+        },
+      });
+      return true;
+    } catch {
+      this.cleanupActiveStudy();
+      return false;
+    }
+  }
+
+  private evaluateDelivery(eventName: string, pathname: string): TriggerEvaluationResult {
+    const timestamp = Date.now();
+    if (this.destroyed) {
+      return {
+        evaluation: this.createStateEvaluation(
+          eventName,
+          pathname,
+          "suppressed",
+          "sdk_destroyed",
+          timestamp,
+        ),
+        matchedStudy: null,
+      };
+    }
+    if (this.directLaunchActive) {
+      return {
+        evaluation: this.createStateEvaluation(
+          eventName,
+          pathname,
+          "suppressed",
+          "direct_launch_active",
+          timestamp,
+        ),
+        matchedStudy: null,
+      };
+    }
+    if (this.activeStudyId !== null) {
+      return {
+        evaluation: this.createStateEvaluation(
+          eventName,
+          pathname,
+          "suppressed",
+          "active_study_present",
+          timestamp,
+        ),
+        matchedStudy: null,
+      };
+    }
+    if (!this.config) {
+      const isUnavailable = this._status === "unavailable";
+      return {
+        evaluation: this.createStateEvaluation(
+          eventName,
+          pathname,
+          isUnavailable ? "suppressed" : "deferred",
+          isUnavailable ? "configuration_unavailable" : "configuration_pending",
+          timestamp,
+        ),
+        matchedStudy: null,
+      };
+    }
+
+    const globalSettings: GlobalSettings = this.config.globalSettings;
+    return evaluateTriggersWithDiagnostics(
+      eventName,
+      this.attributes,
+      this.customId,
+      this.config.studies,
+      globalSettings,
+      pathname,
+      timestamp,
+    );
+  }
+
+  private createStateEvaluation(
+    eventName: string,
+    pathname: string,
+    outcome: InsightfullDeliveryOutcome,
+    reasonCode: InsightfullDeliveryReasonCode,
+    timestamp: number,
+  ): InsightfullDeliveryEvaluation {
+    return {
+      eventName,
+      outcome,
+      pathname,
+      reasonCode,
+      selectedStudyId: null,
+      studies: [],
+      timestamp,
+    };
+  }
+
+  private getCurrentPathname(): string {
+    return typeof window === "undefined" ? "" : window.location.pathname;
+  }
+
+  private toDeliveryTelemetryPayload(
+    evaluation: InsightfullDeliveryEvaluation,
+  ): Record<string, unknown> {
+    return {
+      eventName: evaluation.eventName,
+      outcome: evaluation.outcome,
+      reasonCode: evaluation.reasonCode,
+      selectedStudyId: evaluation.selectedStudyId,
+      studies: evaluation.studies.slice(0, MAX_DELIVERY_STUDIES).map((study) => ({
+        outcome: study.outcome,
+        reasonCode: study.reasonCode,
+        studyId: study.studyId,
+        triggers: study.triggers.slice(0, MAX_DELIVERY_TRIGGERS).map((trigger) => ({
+          eventName: trigger.eventName,
+          filters: trigger.filters.slice(0, MAX_DELIVERY_FILTERS).map((filter) => ({
+            matched: filter.matched,
+            operator: filter.operator,
+            property: filter.property,
+          })),
+          index: trigger.index,
+          isActive: trigger.isActive,
+          matchOn: trigger.matchOn,
+          outcome: trigger.outcome,
+          priority: trigger.priority,
+          reasonCode: trigger.reasonCode,
+        })),
+      })),
+    };
   }
 }

@@ -1,5 +1,6 @@
 import type {
   HostContextV1,
+  InsightfullDeliveryEvaluation,
   InsightfullIframeDisplayState,
   InsightfullRecordingActivityEvidenceMessage,
   InsightfullResponseCompletedMessage,
@@ -378,12 +379,14 @@ function HostProduct() {
   const [cleanupCount, setCleanupCount] = useState(0);
   const [finalizationCount, setFinalizationCount] = useState(0);
   const [headlessState, setHeadlessState] = useState<HeadlessState | null>(null);
+  const [lastDelivery, setLastDelivery] = useState<InsightfullDeliveryEvaluation | null>(null);
   const [launchContext, setLaunchContext] = useState("null");
   const [promoApplied, setPromoApplied] = useState(false);
   const [responseCount, setResponseCount] = useState(0);
   const [resetStatus, setResetStatus] = useState("not-reset");
   const [sdkStatus, setSdkStatus] = useState("initializing");
   const [visitorId, setVisitorId] = useState("");
+  const [dryRunDelivery, setDryRunDelivery] = useState<InsightfullDeliveryEvaluation | null>(null);
 
   useEffect(() => {
     let mounted = true;
@@ -422,6 +425,7 @@ function HostProduct() {
       autoTrack: false,
       clientId: "env_dev",
       onActivityEvidence: () => setActivityEvidenceCount((count) => count + 1),
+      onDeliveryEvaluation: (evaluation) => setLastDelivery(evaluation),
       onResponseCompleted: () => setResponseCount((count) => count + 1),
       ...(renderStudy ? { renderStudy } : {}),
     });
@@ -466,6 +470,14 @@ function HostProduct() {
 
   const beginRecording = (): void => {
     recorderRef.current?.start();
+  };
+
+  const explainDelivery = (): void => {
+    const sdk = sdkRef.current;
+    if (!sdk) {
+      return;
+    }
+    setDryRunDelivery(sdk.explainDelivery("test_launch"));
   };
 
   const resetParticipant = async (): Promise<void> => {
@@ -561,6 +573,9 @@ function HostProduct() {
         </div>
 
         <section className="test-controls" aria-label="SDK test controls">
+          <button data-testid="explain-button" onClick={explainDelivery} type="button">
+            Check interview eligibility
+          </button>
           <button data-testid="launch-button" onClick={launch} type="button">
             Launch contextual interview
           </button>
@@ -596,6 +611,26 @@ function HostProduct() {
         <section className="contract-output" aria-label="Contract output">
           <output data-testid="launch-context">{launchContext}</output>
           <dl>
+            <div>
+              <dt>Dry-run outcome</dt>
+              <dd data-testid="dry-run-outcome">{dryRunDelivery?.outcome ?? "not-run"}</dd>
+            </div>
+            <div>
+              <dt>Dry-run reason</dt>
+              <dd data-testid="dry-run-reason">{dryRunDelivery?.reasonCode ?? "not-run"}</dd>
+            </div>
+            <div>
+              <dt>Dry-run study</dt>
+              <dd data-testid="dry-run-study">{dryRunDelivery?.selectedStudyId ?? "none"}</dd>
+            </div>
+            <div>
+              <dt>Live delivery</dt>
+              <dd data-testid="live-delivery-outcome">{lastDelivery?.outcome ?? "none"}</dd>
+            </div>
+            <div>
+              <dt>Live reason</dt>
+              <dd data-testid="live-delivery-reason">{lastDelivery?.reasonCode ?? "none"}</dd>
+            </div>
             <div>
               <dt>Visitor</dt>
               <dd data-testid="visitor-id">{visitorId}</dd>

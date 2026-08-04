@@ -3,7 +3,7 @@
  */
 
 /** The type of SDK event. */
-export type SdkEventType = "identify" | "attribute" | "event" | "pageview";
+export type SdkEventType = "attribute" | "delivery" | "event" | "identify" | "pageview";
 
 /** Base SDK event shape. */
 export interface SdkEvent {
@@ -37,4 +37,9 @@ export interface PageviewEvent extends SdkEvent {
   name: string;
   type: "pageview";
   url: string;
+}
+
+/** A privacy-safe explanation of an interview delivery decision. */
+export interface DeliveryEvent extends SdkEvent {
+  type: "delivery";
 }

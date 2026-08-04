@@ -1,4 +1,14 @@
 export type {
+  InsightfullDeliveryEvaluation,
+  InsightfullDeliveryEvaluationCallback,
+  InsightfullDeliveryFilterEvaluation,
+  InsightfullDeliveryOutcome,
+  InsightfullDeliveryReasonCode,
+  InsightfullDeliveryStudyEvaluation,
+  InsightfullDeliveryTriggerEvaluation,
+  InsightfullExplainDeliveryOptions,
+} from "./delivery-diagnostics.types.js";
+export type {
   GlobalSettings,
   SdkConfig,
   SdkEnvironment,
@@ -14,6 +24,7 @@ export type { HostContext, HostContextStateValue, HostContextV1 } from "./host-c
 export { HOST_CONTEXT_V1_LIMITS, validateHostContext } from "./host-context.types.js";
 export type {
   AttributeEvent,
+  DeliveryEvent,
   IdentifyEvent,
   PageviewEvent,
   SdkEvent,

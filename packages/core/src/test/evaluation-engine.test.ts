@@ -1,6 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import {
   evaluateTriggers,
+  evaluateTriggersWithDiagnostics,
   isCooldownExpired,
   matchesFilter,
   matchesUrl,
@@ -106,6 +107,173 @@ describe("evaluateTriggers", () => {
 
     const result = evaluateTriggers("checkout_completed", {}, {}, [study], defaultGlobalSettings);
     expect(result).toBe(study);
+  });
+});
+
+describe("evaluateTriggersWithDiagnostics", () => {
+  beforeEach(() => {
+    localStorage.clear();
+  });
+
+  it("explains a matched study without including participant or configured values", () => {
+    const study = makeStudy({
+      triggers: [
+        {
+          eventName: "checkout_completed",
+          filters: [{ property: "account.plan", operator: "equals", value: "enterprise" }],
+          isActive: true,
+          priority: 4,
+        },
+      ],
+    });
+
+    const result = evaluateTriggersWithDiagnostics(
+      "checkout_completed",
+      { account: { plan: "enterprise" } },
+      {},
+      [study],
+      defaultGlobalSettings,
+      "/checkout",
+      1_000,
+    );
+
+    expect(result.matchedStudy).toBe(study);
+    expect(result.evaluation).toMatchObject({
+      eventName: "checkout_completed",
+      outcome: "matched",
+      pathname: "/checkout",
+      reasonCode: "matched",
+      selectedStudyId: 1,
+      timestamp: 1_000,
+    });
+    expect(result.evaluation.studies[0]?.triggers[0]?.filters).toEqual([
+      { matched: true, operator: "equals", property: "account.plan" },
+    ]);
+    expect(JSON.stringify(result.evaluation)).not.toContain("enterprise");
+  });
+
+  it("reports the most actionable mismatch reason", () => {
+    const study = makeStudy({
+      triggers: [
+        {
+          eventName: "checkout_completed",
+          filters: [{ property: "plan", operator: "equals", value: "pro" }],
+          isActive: true,
+          priority: 0,
+        },
+      ],
+    });
+
+    const { evaluation } = evaluateTriggersWithDiagnostics(
+      "checkout_completed",
+      { plan: "free" },
+      {},
+      [study],
+      defaultGlobalSettings,
+    );
+
+    expect(evaluation).toMatchObject({
+      outcome: "not_matched",
+      reasonCode: "no_matching_study",
+      selectedStudyId: null,
+    });
+    expect(evaluation.studies[0]).toMatchObject({
+      outcome: "not_matched",
+      reasonCode: "filter_mismatch",
+    });
+    expect(evaluation.studies[0]?.triggers[0]).toMatchObject({
+      outcome: "not_matched",
+      reasonCode: "filter_mismatch",
+    });
+  });
+
+  it("marks lower-priority matches as suppressed", () => {
+    const lowPriorityStudy = makeStudy({
+      id: 1,
+      triggers: [{ eventName: "checkout", filters: [], isActive: true, priority: 1 }],
+    });
+    const highPriorityStudy = makeStudy({
+      id: 2,
+      triggers: [{ eventName: "checkout", filters: [], isActive: true, priority: 10 }],
+    });
+
+    const result = evaluateTriggersWithDiagnostics(
+      "checkout",
+      {},
+      {},
+      [lowPriorityStudy, highPriorityStudy],
+      defaultGlobalSettings,
+    );
+
+    expect(result.matchedStudy?.id).toBe(2);
+    expect(result.evaluation.studies).toEqual([
+      expect.objectContaining({ studyId: 2, outcome: "matched", reasonCode: "matched" }),
+      expect.objectContaining({
+        studyId: 1,
+        outcome: "suppressed",
+        reasonCode: "another_study_selected",
+      }),
+    ]);
+  });
+
+  it("distinguishes inactive, URL, cooldown, and missing-trigger exclusions", () => {
+    localStorage.setItem("insightfull_cooldown_4", "900");
+    const studies = [
+      makeStudy({ id: 1, triggers: [] }),
+      makeStudy({
+        id: 2,
+        triggers: [{ eventName: "checkout", filters: [], isActive: false, priority: 2 }],
+      }),
+      makeStudy({
+        id: 3,
+        triggers: [
+          {
+            eventName: "/settings/*",
+            filters: [],
+            isActive: true,
+            matchOn: "url",
+            priority: 3,
+          },
+        ],
+      }),
+      makeStudy({ id: 4 }),
+    ];
+
+    const { evaluation } = evaluateTriggersWithDiagnostics(
+      "pageview",
+      {},
+      {},
+      studies,
+      defaultGlobalSettings,
+      "/checkout",
+      1_000,
+    );
+
+    expect(
+      Object.fromEntries(evaluation.studies.map((study) => [study.studyId, study.reasonCode])),
+    ).toEqual({
+      1: "study_has_no_triggers",
+      2: "trigger_inactive",
+      3: "url_mismatch",
+      4: "cooldown_active",
+    });
+  });
+
+  it("returns a distinct empty-environment explanation", () => {
+    const { evaluation } = evaluateTriggersWithDiagnostics(
+      "checkout",
+      {},
+      {},
+      [],
+      defaultGlobalSettings,
+    );
+
+    expect(evaluation).toMatchObject({
+      outcome: "not_matched",
+      reasonCode: "no_studies",
+      selectedStudyId: null,
+      studies: [],
+    });
   });
 });
 

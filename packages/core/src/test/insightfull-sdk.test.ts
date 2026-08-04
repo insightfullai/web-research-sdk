@@ -2,7 +2,12 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import { fetchConfig } from "../config-fetcher/config-fetcher.js";
 import { InsightfullInitializationError, InsightfullSDK } from "../insightfull-sdk.js";
-import type { InsightfullStudyRenderer, SdkConfig, StudyContent } from "../types/index.js";
+import type {
+  InsightfullDeliveryEvaluation,
+  InsightfullStudyRenderer,
+  SdkConfig,
+  StudyContent,
+} from "../types/index.js";
 
 // Mock config fetcher to return a test config
 vi.mock("../config-fetcher/config-fetcher.js", () => ({
@@ -187,11 +192,11 @@ describe("InsightfullSDK", () => {
     await sdk.destroy();
   });
 
-  it("track queues an event", () => {
+  it("track queues the event and its delivery explanation", () => {
     const sdk = InsightfullSDK.init({ clientId: "env_test", autoTrack: false });
     sdk.track("button_clicked", { button: "signup" });
 
-    expect(sdk.queueSize).toBe(1);
+    expect(sdk.queueSize).toBe(2);
     void sdk.destroy();
   });
 
@@ -248,6 +253,152 @@ describe("InsightfullSDK", () => {
     });
     expect(sdk.baseApiUrl).toBe("https://custom.example.com");
     void sdk.destroy();
+  });
+
+  it("explains delivery locally without rendering, setting cooldown, or emitting telemetry", async () => {
+    const study = makeStudy({
+      triggers: [
+        {
+          eventName: "checkout_completed",
+          filters: [{ property: "plan", operator: "equals", value: "enterprise" }],
+          isActive: true,
+          priority: 2,
+        },
+      ],
+    });
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([study]));
+    const onDeliveryEvaluation = vi.fn();
+    const renderStudy = vi.fn<InsightfullStudyRenderer>();
+    const sdk = InsightfullSDK.init({
+      autoTrack: false,
+      clientId: "env_test",
+      onDeliveryEvaluation,
+      renderStudy,
+    });
+    sdk.setAttribute("plan", "enterprise");
+    await waitForSdkConfig();
+    const queueSizeBeforeExplain = sdk.queueSize;
+
+    const evaluation = sdk.explainDelivery("checkout_completed", {
+      pathname: "/billing/review",
+    });
+
+    expect(evaluation).toMatchObject({
+      eventName: "checkout_completed",
+      outcome: "matched",
+      pathname: "/billing/review",
+      reasonCode: "matched",
+      selectedStudyId: 1,
+    });
+    expect(JSON.stringify(evaluation)).not.toContain("enterprise");
+    expect(renderStudy).not.toHaveBeenCalled();
+    expect(onDeliveryEvaluation).not.toHaveBeenCalled();
+    expect(sdk.lastDeliveryEvaluation).toBeNull();
+    expect(sdk.queueSize).toBe(queueSizeBeforeExplain);
+    expect(localStorage.getItem("insightfull_cooldown_1")).toBeNull();
+    await sdk.destroy();
+  });
+
+  it("publishes and stores the real delivery result after presentation", async () => {
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([makeStudy()]));
+    const onDeliveryEvaluation = vi.fn<(evaluation: InsightfullDeliveryEvaluation) => void>();
+    const renderStudy = vi.fn<InsightfullStudyRenderer>();
+    const sdk = InsightfullSDK.init({
+      autoTrack: false,
+      clientId: "env_test",
+      onDeliveryEvaluation,
+      renderStudy,
+    });
+    const subscription = vi.fn<(evaluation: InsightfullDeliveryEvaluation) => void>();
+    const unsubscribe = sdk.onDeliveryEvaluation(subscription);
+    await waitForSdkConfig();
+
+    sdk.track("checkout_completed");
+
+    expect(onDeliveryEvaluation).toHaveBeenCalledWith(
+      expect.objectContaining({
+        outcome: "presented",
+        reasonCode: "matched",
+        selectedStudyId: 1,
+      }),
+    );
+    expect(subscription).toHaveBeenCalledTimes(1);
+    expect(sdk.lastDeliveryEvaluation).toMatchObject({
+      outcome: "presented",
+      selectedStudyId: 1,
+    });
+    expect(localStorage.getItem("insightfull_cooldown_1")).not.toBeNull();
+
+    unsubscribe();
+    sdk.dismissStudy();
+    sdk.track("checkout_completed");
+    expect(subscription).toHaveBeenCalledTimes(1);
+    expect(sdk.lastDeliveryEvaluation).toMatchObject({
+      outcome: "not_matched",
+      reasonCode: "no_matching_study",
+      selectedStudyId: null,
+      studies: [expect.objectContaining({ reasonCode: "cooldown_active" })],
+    });
+    await sdk.destroy();
+  });
+
+  it("reports deferred and final results for events tracked before configuration loads", async () => {
+    let resolveConfig: (config: SdkConfig) => void;
+    mockedFetchConfig.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveConfig = resolve;
+      }),
+    );
+    const deliveryEvaluations: InsightfullDeliveryEvaluation[] = [];
+    const sdk = InsightfullSDK.init({
+      autoTrack: false,
+      clientId: "env_test",
+      onDeliveryEvaluation: (evaluation) => deliveryEvaluations.push(evaluation),
+      renderStudy: () => undefined,
+    });
+
+    sdk.track("checkout_completed");
+    expect(deliveryEvaluations).toEqual([
+      expect.objectContaining({
+        outcome: "deferred",
+        reasonCode: "configuration_pending",
+      }),
+    ]);
+
+    resolveConfig!(makeConfig([makeStudy()]));
+    await waitForSdkConfig();
+    expect(deliveryEvaluations).toEqual([
+      expect.objectContaining({ reasonCode: "configuration_pending" }),
+      expect.objectContaining({ outcome: "presented", reasonCode: "matched" }),
+    ]);
+    await sdk.destroy();
+  });
+
+  it("reports renderer failures without setting a cooldown", async () => {
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([makeStudy()]));
+    const onDeliveryEvaluation = vi.fn();
+    const sdk = InsightfullSDK.init({
+      autoTrack: false,
+      clientId: "env_test",
+      onDeliveryEvaluation,
+      renderStudy: () => {
+        throw new Error("Host renderer failed");
+      },
+    });
+    await waitForSdkConfig();
+
+    sdk.track("checkout_completed");
+
+    expect(onDeliveryEvaluation).toHaveBeenLastCalledWith(
+      expect.objectContaining({
+        outcome: "suppressed",
+        reasonCode: "renderer_failed",
+        selectedStudyId: 1,
+      }),
+    );
+    expect(sdk.currentStudyId).toBeNull();
+    expect(localStorage.getItem("insightfull_cooldown_1")).toBeNull();
+    await sdk.destroy();
   });
 
   it("uses default fixed iframe rendering when a trigger matches", async () => {
@@ -487,7 +638,7 @@ describe("InsightfullSDK", () => {
     await sdk.destroy();
   });
 
-  it("cleans up the previous custom renderer before displaying another study", async () => {
+  it("preserves an active interview until the host dismisses it", async () => {
     const firstStudy = makeStudy({
       id: 21,
       triggers: [{ eventName: "first_event", filters: [], isActive: true, priority: 0 }],
@@ -513,8 +664,22 @@ describe("InsightfullSDK", () => {
     sdk.track("first_event");
     sdk.track("second_event");
 
-    expect(firstCleanup).toHaveBeenCalledTimes(1);
+    expect(renderStudy).toHaveBeenCalledTimes(1);
+    expect(firstCleanup).not.toHaveBeenCalled();
     expect(secondCleanup).not.toHaveBeenCalled();
+    expect(sdk.currentStudyId).toBe(21);
+    expect(sdk.lastDeliveryEvaluation).toMatchObject({
+      eventName: "second_event",
+      outcome: "suppressed",
+      reasonCode: "active_study_present",
+      selectedStudyId: null,
+    });
+
+    sdk.dismissStudy();
+    sdk.track("second_event");
+
+    expect(firstCleanup).toHaveBeenCalledTimes(1);
+    expect(renderStudy).toHaveBeenCalledTimes(2);
     expect(sdk.currentStudyId).toBe(22);
     await sdk.destroy();
     expect(secondCleanup).toHaveBeenCalledTimes(1);
@@ -709,6 +874,7 @@ describe("InsightfullSDK", () => {
 
     await waitForSdkConfig();
     sdk.track("first_event");
+    sdk.dismissStudy();
     sdk.track("second_event");
 
     const [firstRegistration, secondRegistration] = registrations;

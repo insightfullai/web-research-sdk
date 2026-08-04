@@ -73,6 +73,34 @@ sdk.track("checkout_promo_help_requested", undefined, {
 
 The SDK never infers host context from the page DOM, URL, document title, event payload, or identity traits.
 
+## Explainable delivery
+
+Evaluate the current event, pathname, identity attributes, priorities, and cooldowns without displaying an interview or mutating SDK state:
+
+```ts
+const evaluation = sdk.explainDelivery("checkout_completed");
+
+const routeFixture = sdk.explainDelivery("pricing_opened", {
+  pathname: "/pricing/enterprise",
+});
+```
+
+Observe real delivery attempts with a cleanup-safe subscription:
+
+```ts
+const unsubscribe = sdk.onDeliveryEvaluation((evaluation) => {
+  console.log(evaluation.outcome, evaluation.reasonCode);
+});
+
+sdk.lastDeliveryEvaluation;
+
+unsubscribe();
+```
+
+`onDeliveryEvaluation` is also accepted as an initialization option. Events tracked before configuration is ready emit a deferred `configuration_pending` evaluation followed by a final result. The trace contains configured property names and boolean filter results, but never participant attribute values or configured comparison values.
+
+See [Delivery diagnostics](../guides/delivery-diagnostics.md) for the complete type contract, stable reason codes, privacy rules, and test examples.
+
 ## Active interview lifecycle
 
 ```ts

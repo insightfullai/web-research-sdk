@@ -27,6 +27,10 @@ import { InsightfullSDK } from "@insightfull/web-research-sdk";
 const sdk = InsightfullSDK.init({
   clientId: "env_abc123",
   autoTrack: true,
+  onDeliveryEvaluation(evaluation) {
+    // Optional: feed a development-only integration panel.
+    console.debug(evaluation.outcome, evaluation.reasonCode);
+  },
 });
 
 await sdk.ready();
@@ -84,10 +88,11 @@ Before launch, confirm all of the following:
 1. `await sdk.ready()` resolves and `sdk.status` is `"ready"`.
 2. The expected user ID and non-sensitive targeting attributes are set.
 3. The test event appears in the Insightfull environment.
-4. A preview study triggered from the real application displays.
-5. Minimize and resume preserve the participant’s task and host-application state.
-6. Dismissal returns control to the host and removes the active bridge.
-7. Logout calls `await sdk.reset()` before the next user is identified.
+4. `sdk.explainDelivery(expectedEvent).outcome` is `"matched"` without displaying anything.
+5. A preview study triggered from the real application displays.
+6. Minimize and resume preserve the participant’s task and host-application state.
+7. Dismissal returns control to the host and removes the active bridge.
+8. Logout calls `await sdk.reset()` before the next user is identified.
 
 The current lifecycle can be inspected without querying the DOM:
 
@@ -97,21 +102,23 @@ sdk.initializationError;
 sdk.currentStudyId;
 sdk.currentStudyDisplayState;
 sdk.version;
+sdk.lastDeliveryEvaluation;
 ```
 
 If verification or delivery does not behave as expected, follow the [troubleshooting and launch diagnostics guide](../guides/troubleshooting.md).
 
 ## Configuration
 
-| Option                | Type                           | Default                  | Description                                      |
-| --------------------- | ------------------------------ | ------------------------ | ------------------------------------------------ |
-| `clientId`            | `string`                       | required                 | Public environment ID from Insightfull.          |
-| `autoTrack`           | `boolean`                      | `true`                   | Track page views and URL changes.                |
-| `apiBase`             | `string`                       | `https://insightfull.ai` | Insightfull API origin.                          |
-| `appearance`          | `InsightfullAppearanceOptions` | corner panel             | Configure the default renderer.                  |
-| `renderStudy`         | `InsightfullStudyRenderer`     | undefined                | Own rendering and return deterministic cleanup.  |
-| `onActivityEvidence`  | callback                       | undefined                | Observe verified privacy-safe activity evidence. |
-| `onResponseCompleted` | callback                       | undefined                | Observe server-confirmed response completion.    |
+| Option                 | Type                           | Default                  | Description                                              |
+| ---------------------- | ------------------------------ | ------------------------ | -------------------------------------------------------- |
+| `clientId`             | `string`                       | required                 | Public environment ID from Insightfull.                  |
+| `autoTrack`            | `boolean`                      | `true`                   | Track page views and URL changes.                        |
+| `apiBase`              | `string`                       | `https://insightfull.ai` | Insightfull API origin.                                  |
+| `appearance`           | `InsightfullAppearanceOptions` | corner panel             | Configure the default renderer.                          |
+| `renderStudy`          | `InsightfullStudyRenderer`     | undefined                | Own rendering and return deterministic cleanup.          |
+| `onActivityEvidence`   | callback                       | undefined                | Observe verified privacy-safe activity evidence.         |
+| `onResponseCompleted`  | callback                       | undefined                | Observe server-confirmed response completion.            |
+| `onDeliveryEvaluation` | callback                       | undefined                | Observe privacy-safe targeting and presentation results. |
 
 ## Content Security Policy
 

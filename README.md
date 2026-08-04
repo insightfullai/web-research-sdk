@@ -34,6 +34,7 @@ The host-side surface — iframe runtime, presentation controls, bridge transpor
 - **Presentation controls** — configure placement, size, brand color, radius, offset, and minimized copy.
 - **Full host control** — own the iframe container and lifecycle with a cleanup-safe custom renderer.
 - **Operational status** — await `ready()`, inspect typed initialization errors, and reset identity safely on logout.
+- **Explainable delivery** — dry-run targeting and observe privacy-safe reason codes without displaying an interview.
 
 ## Quick start
 
@@ -71,6 +72,10 @@ sdk.identify("user_123", { plan: "pro", company: "Acme" });
 // Triggers fire on matching events
 sdk.track("checkout_completed", { total: 99.99 });
 
+// Prove targeting without rendering, setting cooldown, or sending telemetry
+const eligibility = sdk.explainDelivery("checkout_completed");
+console.log(eligibility.outcome, eligibility.reasonCode);
+
 // On logout or account switching
 await sdk.reset();
 ```
@@ -98,7 +103,7 @@ function CheckoutButton() {
 }
 ```
 
-More in the [installation guide](docs/quickstart/installation.md), [React integration guide](docs/quickstart/react-integration.md), and [Next.js guide](docs/quickstart/nextjs.md).
+For the complete launch path, start with [Ship your first in-product interview](docs/quickstart/first-interview.md). More stack-specific setup is in the [installation guide](docs/quickstart/installation.md), [React integration guide](docs/quickstart/react-integration.md), and [Next.js guide](docs/quickstart/nextjs.md).
 
 ## Packages
 
@@ -114,10 +119,12 @@ More in the [installation guide](docs/quickstart/installation.md), [React integr
 - **[Documentation map](docs/README.md)** — choose a stack-specific integration path.
 - In-repo quickstart:
   - [`installation.md`](docs/quickstart/installation.md) — install, configuration, custom attributes.
+  - [`first-interview.md`](docs/quickstart/first-interview.md) — connect, prove targeting, test, and promote an interview.
   - [`react-integration.md`](docs/quickstart/react-integration.md) — provider, hook, SSR.
   - [`nextjs.md`](docs/quickstart/nextjs.md) — App Router provider, identity, preview deployments.
   - [`customize-interview-experience.md`](docs/guides/customize-interview-experience.md) — configured and fully custom renderers.
   - [`sdk-api.md`](docs/reference/sdk-api.md) — readiness, identity, events, lifecycle, and cleanup.
+  - [`delivery-diagnostics.md`](docs/guides/delivery-diagnostics.md) — typed reason codes, privacy contract, and delivery tests.
   - [`local-integration-runbook.md`](docs/quickstart/local-integration-runbook.md) — linking, packed validation, smoke tests.
 
 ## Recipes

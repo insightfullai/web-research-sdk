@@ -4,6 +4,7 @@ Choose the shortest path that matches your application:
 
 | Stack                                          | Start here                                                                     |
 | ---------------------------------------------- | ------------------------------------------------------------------------------ |
+| First production integration                   | [Ship your first in-product interview](quickstart/first-interview.md)          |
 | Vanilla TypeScript, Vite, or another framework | [Installation and setup](quickstart/installation.md)                           |
 | React or React Router                          | [React integration](quickstart/react-integration.md)                           |
 | Next.js App Router                             | [Next.js integration](quickstart/nextjs.md)                                    |
@@ -15,13 +16,15 @@ Choose the shortest path that matches your application:
 2. Initialize the SDK and verify `ready()`.
 3. Identify the participant with non-sensitive attributes.
 4. Track one stable product event.
-5. Preview the study in the real application.
-6. Verify minimize, resume, dismissal, logout reset, and responsive behavior.
-7. Promote the same integration to a separate production environment ID.
+5. Prove targeting with the side-effect-free `explainDelivery()` API.
+6. Preview the study in the real application.
+7. Verify minimize, resume, dismissal, logout reset, and responsive behavior.
+8. Promote the same integration to a separate production environment ID.
 
 ## Reference
 
 - [SDK API](reference/sdk-api.md)
+- [Explain and debug delivery](guides/delivery-diagnostics.md)
 - [Explicit host context](../packages/core/README.md#explicit-host-context)
 - [Local packed-package validation](quickstart/local-integration-runbook.md)
 - [Troubleshooting and launch diagnostics](guides/troubleshooting.md)

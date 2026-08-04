@@ -21,6 +21,8 @@ test("runs the complete participant journey with customized default appearance",
   page,
 }) => {
   await page.goto("/?mode=customized");
+  await expect(page.getByTestId("sdk-status")).toHaveText("ready");
+  await page.getByTestId("record-button").click();
   const interview = await openInterview(page);
 
   const host = page.locator(STUDY_HOST);
@@ -28,7 +30,6 @@ test("runs the complete participant journey with customized default appearance",
   await expect(host).toHaveCSS("width", "430px");
   await expect(page.getByTestId("launch-context")).toContainText('"id":"northstar_checkout_v1"');
 
-  await page.getByTestId("record-button").click({ force: true });
   await expect(interview.getByTestId("recording-session-status")).toHaveText(
     "Privacy recording active",
   );
@@ -59,6 +60,27 @@ test("runs the complete participant journey with customized default appearance",
   await expect(page.getByTestId("finalization-count")).toHaveText("1");
 });
 
+test("explains eligibility without side effects before presenting the interview", async ({
+  page,
+}) => {
+  await page.goto("/");
+  await expect(page.getByTestId("sdk-status")).toHaveText("ready");
+
+  await page.getByTestId("explain-button").click();
+
+  await expect(page.getByTestId("dry-run-outcome")).toHaveText("matched");
+  await expect(page.getByTestId("dry-run-reason")).toHaveText("matched");
+  await expect(page.getByTestId("dry-run-study")).toHaveText("42");
+  await expect(page.getByTestId("live-delivery-outcome")).toHaveText("none");
+  await expect(page.locator(STUDY_HOST)).not.toBeAttached();
+
+  await page.getByTestId("launch-button").click();
+
+  await expect(page.getByTestId("live-delivery-outcome")).toHaveText("presented");
+  await expect(page.getByTestId("live-delivery-reason")).toHaveText("matched");
+  await expect(page.locator(STUDY_HOST)).toBeVisible();
+});
+
 test("keeps the iframe alive while a fully custom host renderer minimizes and resumes", async ({
   page,
 }) => {
@@ -74,7 +96,7 @@ test("keeps the iframe alive while a fully custom host renderer minimizes and re
   await page.getByRole("button", { name: "Return to checkout interview" }).click();
   await expect(interview.getByText("Task 1 of 2")).toBeVisible();
 
-  await page.getByTestId("host-minimize").click({ force: true });
+  await page.getByRole("button", { exact: true, name: "Minimize" }).click();
   await expect(page.getByTestId("headless-pill")).toBeVisible();
   await page.getByTestId("host-expand").click();
   await expect(interview.getByText("Task 1 of 2")).toBeVisible();
@@ -89,7 +111,6 @@ test("reset clears active research and rotates the anonymous participant", async
   await openInterview(page);
   const originalVisitorId = await page.getByTestId("visitor-id").textContent();
 
-  await page.getByTestId("host-minimize").click({ force: true });
   await page.getByTestId("reset-button").click();
 
   await expect(page.getByTestId("reset-status")).toHaveText("reset-complete");
