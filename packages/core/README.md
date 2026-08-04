@@ -8,6 +8,10 @@ Core Insightfull Web Research SDK package.
 
 This package exposes the host-side client facade and bridge runtime only. Proprietary overlay logic is intentionally excluded from this OSS package.
 
+- [Installation and verification](../../docs/quickstart/installation.md)
+- [Customize the interview experience](../../docs/guides/customize-interview-experience.md)
+- [SDK API reference](../../docs/reference/sdk-api.md)
+
 ## Explicit host context
 
 Host context is optional, versioned, and accepted only as the third argument to `track`. It is strictly validated before being added to the iframe launch context. The SDK never derives it from identify traits, event payloads, URLs, titles, or DOM content.

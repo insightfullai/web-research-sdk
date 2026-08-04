@@ -1,22 +1,12 @@
-/**
- * Local evaluation engine — matches tracked events against study triggers.
- * All evaluation happens client-side with no server round-trip per event.
- */
-
 import type { GlobalSettings, StudyContent, TriggerFilter } from "../types/index.js";
 
 const COOLDOWN_PREFIX = "insightfull_cooldown_";
 
-/**
- * Resolve a nested property value using dot notation.
- * e.g. "user.plan" resolves attributes.user.plan
- */
 function resolveProperty(
   property: string,
   attributes: Record<string, unknown>,
   customId: Record<string, string>,
 ): unknown {
-  // Special prefix: customId.* resolves from customId map
   if (property.startsWith("customId.")) {
     const key = property.slice("customId.".length);
     return customId[key];
@@ -39,9 +29,6 @@ function resolveProperty(
   return current;
 }
 
-/**
- * Check if a single filter matches the current attributes and custom IDs.
- */
 export function matchesFilter(
   filter: TriggerFilter,
   attributes: Record<string, unknown>,
@@ -49,11 +36,38 @@ export function matchesFilter(
 ): boolean {
   const resolvedValue = resolveProperty(filter.property, attributes, customId);
 
+  const contains = (): boolean => {
+    if (typeof resolvedValue === "string" && typeof filter.value === "string") {
+      return resolvedValue.includes(filter.value);
+    }
+    if (Array.isArray(resolvedValue)) {
+      return resolvedValue.includes(filter.value);
+    }
+    return false;
+  };
+  const numericComparison = (predicate: (left: number, right: number) => boolean): boolean => {
+    const left = typeof resolvedValue === "number" ? resolvedValue : Number.NaN;
+    const right = typeof filter.value === "number" ? filter.value : Number(filter.value);
+    return Number.isFinite(left) && Number.isFinite(right) && predicate(left, right);
+  };
+
   switch (filter.operator) {
+    case "contains":
+      return contains();
     case "equals":
       return resolvedValue === filter.value;
     case "exists":
       return resolvedValue !== undefined && resolvedValue !== null;
+    case "greater_than":
+      return numericComparison((left, right) => left > right);
+    case "less_than":
+      return numericComparison((left, right) => left < right);
+    case "not_contains":
+      return !contains();
+    case "not_equals":
+      return resolvedValue !== filter.value;
+    case "not_exists":
+      return resolvedValue === undefined || resolvedValue === null;
     default:
       console.warn(`Unrecognized filter operator: ${String(filter.operator)}`);
       return false;
@@ -141,16 +155,13 @@ export function evaluateTriggers(
         return false;
       }
 
-      // URL-based trigger matching
-      if (trigger.matchOn === "url") {
-        if (eventName !== "pageview" || !currentUrl) {
-          return false;
-        }
-        return matchesUrl(trigger.eventName, currentUrl);
-      }
-
-      // Default: event-based matching
-      if (trigger.eventName !== eventName) {
+      const triggerMatches =
+        trigger.matchOn === "url"
+          ? eventName === "pageview" &&
+            currentUrl !== undefined &&
+            matchesUrl(trigger.eventName, currentUrl)
+          : trigger.eventName === eventName;
+      if (!triggerMatches) {
         return false;
       }
 

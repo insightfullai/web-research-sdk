@@ -1,13 +1,5 @@
-/**
- * iframe renderer — creates a positioned div with an iframe to display a study.
- *
- * Supports display states for in-app testing:
- * - "expanded": full-size iframe overlay (default).
- * - "minimized": small pill at the bottom; iframe contentWindow stays alive
- *   so the postMessage bridge and recorder keep working.
- */
-
 import type {
+  InsightfullAppearanceOptions,
   InsightfullIframeDisplayState,
   InsightfullStudyRenderPayload,
   SdkContext,
@@ -17,8 +9,12 @@ import type {
 const IFRAME_ID_PREFIX = "insightfull-study-";
 
 export interface RenderStudyOptions {
+  appearance?: InsightfullAppearanceOptions;
   onBeforeRemoveExisting?: (studyId: number) => void;
-  onDisplayStateChange?: (state: InsightfullIframeDisplayState) => void;
+  onDisplayStateRequest?: (state: InsightfullIframeDisplayState) => void;
+  subscribeToDisplayState?: (
+    callback: (state: InsightfullIframeDisplayState) => void,
+  ) => () => void;
   onIframeCreated?: (payload: {
     iframe: HTMLIFrameElement;
     iframeUrl: string;
@@ -31,28 +27,23 @@ export interface RenderStudyOptions {
     nonce: string | null;
     studyId: number;
   }) => () => void;
-  removeDefaultStudy?: () => void;
+  dismissStudy?: () => void;
+  expandStudy?: () => void;
+  minimizeStudy?: () => void;
 }
 
-/**
- * Build a base64-encoded context payload for the iframe URL.
- */
 export function buildContextPayload(context: SdkContext): string {
-  const json = JSON.stringify(context);
-  // btoa works for ASCII/Latin1. For broader Unicode support, use TextEncoder.
+  const { agentLaunchToken: _agentLaunchToken, ...iframeContext } = context;
+  const json = JSON.stringify(iframeContext);
   try {
     return btoa(json);
   } catch {
-    // Fallback for Unicode content
     const bytes = new TextEncoder().encode(json);
     const binary = Array.from(bytes, (byte) => String.fromCodePoint(byte)).join("");
     return btoa(binary);
   }
 }
 
-/**
- * Build the iframe URL for a study using the same context encoding as the default renderer.
- */
 export function buildStudyIframeUrl(
   apiBase: string,
   study: StudyContent,
@@ -60,24 +51,34 @@ export function buildStudyIframeUrl(
 ): string {
   const payload = buildContextPayload(context);
   const shareSlug = study.shareUrl ?? `id/${study.id}`;
-  return `${apiBase}/study/${shareSlug}?ctx=${encodeURIComponent(payload)}`;
+  const iframeUrl = `${apiBase}/study/${shareSlug}?ctx=${encodeURIComponent(payload)}`;
+  if (!context.agentLaunchToken) {
+    return iframeUrl;
+  }
+  const fragment = new URLSearchParams();
+  fragment.set("instfl_agent", context.agentLaunchToken);
+  return `${iframeUrl}#${fragment.toString()}`;
 }
 
-/**
- * Build the typed payload shared by the default renderer and host-provided custom renderers.
- */
 export function buildStudyRenderPayload(
   apiBase: string,
   study: StudyContent,
   context: SdkContext,
   options: Pick<
     RenderStudyOptions,
-    "registerIframeBridge" | "removeDefaultStudy" | "onDisplayStateChange"
+    | "dismissStudy"
+    | "expandStudy"
+    | "minimizeStudy"
+    | "registerIframeBridge"
+    | "subscribeToDisplayState"
   > = {},
 ): InsightfullStudyRenderPayload {
   const iframeUrl = buildStudyIframeUrl(apiBase, study, context);
   return {
+    dismiss: options.dismissStudy ?? (() => removeStudy(study.id)),
+    expand: options.expandStudy ?? (() => undefined),
     iframeUrl,
+    minimize: options.minimizeStudy ?? (() => undefined),
     study,
     context,
     registerIframeBridge: (iframe) =>
@@ -87,22 +88,10 @@ export function buildStudyRenderPayload(
         nonce: context.iframeBridge?.nonce ?? null,
         studyId: study.id,
       }) ?? (() => undefined),
-    removeDefaultStudy: options.removeDefaultStudy ?? (() => removeStudy(study.id)),
-    onDisplayStateChange: options.onDisplayStateChange,
+    onDisplayStateChange: options.subscribeToDisplayState ?? (() => () => undefined),
   };
 }
 
-/**
- * Render a study in a positioned iframe overlay.
- * Returns the host div element.
- *
- * The host contains two children:
- * - An iframe wrapper (visible when expanded)
- * - A minimized pill (visible when minimized; click to expand)
- *
- * When minimized, the iframe is hidden via CSS but never removed from the DOM,
- * so its contentWindow and the postMessage bridge stay alive.
- */
 export function renderStudy(
   apiBase: string,
   study: StudyContent,
@@ -110,48 +99,54 @@ export function renderStudy(
   options: RenderStudyOptions = {},
 ): HTMLDivElement {
   const renderPayload = buildStudyRenderPayload(apiBase, study, context, options);
+  const appearance = normalizeAppearance(options.appearance);
 
-  // Remove existing iframe if present
   options.onBeforeRemoveExisting?.(study.id);
   removeStudy(study.id);
 
-  // Create host element
   const host = document.createElement("div");
   host.id = `${IFRAME_ID_PREFIX}${study.id}`;
   host.dataset.displayState = "expanded";
+  host.dataset.expandedHeight = `${appearance.height}px`;
+  host.dataset.expandedWidth = `${appearance.width}px`;
+  host.dataset.minimizedPlacement = appearance.minimizedPlacement;
+  host.dataset.offset = `${appearance.offset}`;
+  host.dataset.placement = appearance.placement;
   host.style.cssText = [
     "position: fixed",
-    "bottom: 20px",
-    "right: 20px",
-    "width: 420px",
-    "height: 640px",
-    "z-index: 999999",
+    `width: ${appearance.width}px`,
+    `height: ${appearance.height}px`,
+    `max-width: calc(100vw - ${appearance.offset * 2}px)`,
+    `max-height: calc(100vh - ${appearance.offset * 2}px)`,
+    `z-index: ${appearance.zIndex}`,
     "border: none",
-    "border-radius: 12px",
+    `border-radius: ${appearance.borderRadius}px`,
     "box-shadow: 0 8px 32px rgba(0,0,0,0.15)",
     "overflow: hidden",
     "transition: width 200ms ease, height 200ms ease",
   ].join("; ");
+  applyPlacement(host, appearance.placement, appearance.offset);
 
-  // Create iframe wrapper (holds the iframe; hidden when minimized)
   const iframeWrapper = document.createElement("div");
   iframeWrapper.dataset.role = "insightfull-iframe-wrapper";
   iframeWrapper.style.cssText = "width:100%;height:100%;";
 
-  // Create iframe
   const iframe = document.createElement("iframe");
   iframe.src = renderPayload.iframeUrl;
-  iframe.style.cssText = "width:100%;height:100%;border:none;border-radius:12px;";
+  iframe.style.cssText = `width:100%;height:100%;border:none;border-radius:${appearance.borderRadius}px;`;
   iframe.setAttribute("allow", "clipboard-write");
   iframe.setAttribute("title", study.title ?? `Study ${study.id}`);
 
   iframeWrapper.appendChild(iframe);
   host.appendChild(iframeWrapper);
 
-  // Create minimized pill (hidden by default; visible when minimized)
-  const pill = createMinimizedPill(study);
+  const pill = createMinimizedPill(study, appearance);
   pill.style.display = "none";
   pill.addEventListener("click", () => {
+    if (options.onDisplayStateRequest) {
+      options.onDisplayStateRequest("expanded");
+      return;
+    }
     setStudyDisplayState(study.id, "expanded");
   });
   host.appendChild(pill);
@@ -167,11 +162,63 @@ export function renderStudy(
   return host;
 }
 
-/**
- * Create the minimized pill element shown when the study iframe is collapsed.
- * Shows an Insightfull logo dot and a pulsing indicator. Clicking expands.
- */
-function createMinimizedPill(study: StudyContent): HTMLButtonElement {
+interface NormalizedAppearance {
+  accentColor: string;
+  borderRadius: number;
+  height: number;
+  minimizedLabel: string;
+  minimizedPlacement: "bottom-left" | "bottom-right";
+  offset: number;
+  placement: "bottom-left" | "bottom-right" | "center";
+  textColor: string;
+  width: number;
+  zIndex: number;
+}
+
+function clamp(value: number | undefined, fallback: number, min: number, max: number): number {
+  return typeof value === "number" && Number.isFinite(value)
+    ? Math.min(max, Math.max(min, value))
+    : fallback;
+}
+
+function normalizeAppearance(options: InsightfullAppearanceOptions = {}): NormalizedAppearance {
+  const placement = options.placement ?? "bottom-right";
+  return {
+    accentColor: options.accentColor ?? "#4f46e5",
+    borderRadius: clamp(options.borderRadius, 12, 0, 48),
+    height: clamp(options.height, 640, 320, 1200),
+    minimizedLabel: options.minimizedLabel?.trim() || "Insightfull",
+    minimizedPlacement:
+      options.minimizedPlacement ?? (placement === "bottom-left" ? "bottom-left" : "bottom-right"),
+    offset: clamp(options.offset, 20, 0, 200),
+    placement,
+    textColor: options.textColor ?? "#ffffff",
+    width: clamp(options.width, 420, 280, 1200),
+    zIndex: clamp(options.zIndex, 999_999, 1, 2_147_483_647),
+  };
+}
+
+function applyPlacement(
+  host: HTMLElement,
+  placement: "bottom-left" | "bottom-right" | "center",
+  offset: number,
+): void {
+  host.style.inset = "auto";
+  host.style.transform = "none";
+  if (placement === "center") {
+    host.style.left = "50%";
+    host.style.top = "50%";
+    host.style.transform = "translate(-50%, -50%)";
+    return;
+  }
+  host.style.bottom = `${offset}px`;
+  host.style[placement === "bottom-left" ? "left" : "right"] = `${offset}px`;
+}
+
+function createMinimizedPill(
+  study: StudyContent,
+  appearance: NormalizedAppearance,
+): HTMLButtonElement {
   const pill = document.createElement("button");
   pill.type = "button";
   pill.dataset.role = "insightfull-minimized-pill";
@@ -182,8 +229,8 @@ function createMinimizedPill(study: StudyContent): HTMLButtonElement {
     "align-items: center",
     "gap: 8px",
     "padding: 8px 16px",
-    "background: #4f46e5",
-    "color: #ffffff",
+    `background: ${appearance.accentColor}`,
+    `color: ${appearance.textColor}`,
     "border: none",
     "border-radius: 9999px",
     "font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', sans-serif",
@@ -205,12 +252,11 @@ function createMinimizedPill(study: StudyContent): HTMLButtonElement {
   ].join("; ");
 
   const label = document.createElement("span");
-  label.textContent = "Insightfull";
+  label.textContent = appearance.minimizedLabel;
 
   pill.appendChild(dot);
   pill.appendChild(label);
 
-  // Inject the pulse keyframes once
   injectPulseKeyframes();
 
   return pill;
@@ -233,15 +279,6 @@ function injectPulseKeyframes(): void {
   document.head.appendChild(style);
 }
 
-/**
- * Apply a display state to a rendered study container.
- *
- * - "expanded": full-size iframe overlay with the pill hidden.
- * - "minimized": iframe wrapper hidden, pill shown. The iframe element stays
- *   in the DOM so its contentWindow and postMessage bridge remain active.
- *
- * Safe no-op if the study container does not exist.
- */
 export function setStudyDisplayState(studyId: number, state: InsightfullIframeDisplayState): void {
   const host = document.getElementById(`${IFRAME_ID_PREFIX}${studyId}`);
   if (!host) {
@@ -255,6 +292,11 @@ export function setStudyDisplayState(studyId: number, state: InsightfullIframeDi
     host.dataset.displayState = "minimized";
     host.style.width = "auto";
     host.style.height = "auto";
+    applyPlacement(
+      host,
+      host.dataset.minimizedPlacement === "bottom-left" ? "bottom-left" : "bottom-right",
+      Number(host.dataset.offset ?? 20),
+    );
     if (wrapper) {
       wrapper.style.display = "none";
     }
@@ -263,8 +305,14 @@ export function setStudyDisplayState(studyId: number, state: InsightfullIframeDi
     }
   } else {
     host.dataset.displayState = "expanded";
-    host.style.width = "420px";
-    host.style.height = "640px";
+    host.style.width = host.dataset.expandedWidth ?? "420px";
+    host.style.height = host.dataset.expandedHeight ?? "640px";
+    const placement = host.dataset.placement;
+    applyPlacement(
+      host,
+      placement === "bottom-left" || placement === "center" ? placement : "bottom-right",
+      Number(host.dataset.offset ?? 20),
+    );
     if (wrapper) {
       wrapper.style.display = "block";
     }
@@ -274,9 +322,6 @@ export function setStudyDisplayState(studyId: number, state: InsightfullIframeDi
   }
 }
 
-/**
- * Remove a study iframe from the DOM.
- */
 export function removeStudy(studyId: number): void {
   const existing = document.getElementById(`${IFRAME_ID_PREFIX}${studyId}`);
   if (existing) {

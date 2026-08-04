@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import { fetchConfig } from "../config-fetcher/config-fetcher.js";
-import { InsightfullSDK } from "../insightfull-sdk.js";
+import { InsightfullInitializationError, InsightfullSDK } from "../insightfull-sdk.js";
 import type { InsightfullStudyRenderer, SdkConfig, StudyContent } from "../types/index.js";
 
 // Mock config fetcher to return a test config
@@ -83,8 +83,15 @@ describe("InsightfullSDK", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
     localStorage.clear();
+    window.history.replaceState({}, "", "/");
     vi.clearAllMocks();
     mockedFetchConfig.mockResolvedValue(makeConfig());
+  });
+
+  it("exposes its version for host-side integration diagnostics", () => {
+    const sdk = InsightfullSDK.init({ clientId: "env_test" });
+
+    expect(sdk.version).toBe("1.0.0");
   });
 
   it("init creates an instance", () => {
@@ -101,6 +108,37 @@ describe("InsightfullSDK", () => {
     void sdk.destroy();
   });
 
+  it("exposes initializing and ready states", async () => {
+    let resolveConfig: (config: SdkConfig) => void;
+    mockedFetchConfig.mockReturnValueOnce(
+      new Promise((resolve) => {
+        resolveConfig = resolve;
+      }),
+    );
+    const sdk = InsightfullSDK.init({ clientId: "env_test", autoTrack: false });
+
+    expect(sdk.status).toBe("initializing");
+    resolveConfig!(makeConfig());
+    await expect(sdk.ready()).resolves.toBeUndefined();
+    expect(sdk.status).toBe("ready");
+    expect(sdk.initializationError).toBeNull();
+    await sdk.destroy();
+    expect(sdk.status).toBe("destroyed");
+  });
+
+  it("rejects ready with a typed error when configuration is unavailable", async () => {
+    mockedFetchConfig.mockResolvedValueOnce(null);
+    const sdk = InsightfullSDK.init({ clientId: "env_missing", autoTrack: false });
+
+    await expect(sdk.ready()).rejects.toMatchObject({
+      code: "configuration_unavailable",
+      name: "InsightfullInitializationError",
+    });
+    expect(sdk.status).toBe("unavailable");
+    expect(sdk.initializationError).toBeInstanceOf(InsightfullInitializationError);
+    await sdk.destroy();
+  });
+
   it("setCustomId stores custom identifiers", () => {
     const sdk = InsightfullSDK.init({ clientId: "env_test", autoTrack: false });
     sdk.setCustomId("email", "test@example.com");
@@ -115,6 +153,38 @@ describe("InsightfullSDK", () => {
 
     expect(sdk.currentAttributes.company).toBe("Acme");
     void sdk.destroy();
+  });
+
+  it("sets and removes targeting attributes in batches", () => {
+    const sdk = InsightfullSDK.init({ clientId: "env_test", autoTrack: false });
+    sdk.setAttributes({ company: "Acme", plan: "pro", seats: 20 });
+
+    expect(sdk.currentAttributes).toEqual({ company: "Acme", plan: "pro", seats: 20 });
+    sdk.removeAttributes(["company", "seats"]);
+    expect(sdk.currentAttributes).toEqual({ plan: "pro" });
+    void sdk.destroy();
+  });
+
+  it("resets identity, targeting state, active study, and visitor session", async () => {
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([makeStudy()]));
+    const sdk = InsightfullSDK.init({ clientId: "env_test", autoTrack: false });
+    await waitForSdkConfig();
+    const previousVisitorId = sdk.currentVisitorId;
+    sdk.identify("user-123", { plan: "pro" });
+    sdk.setCustomId("account", "acct-123");
+    sdk.track("checkout_completed");
+    expect(sdk.currentStudyId).toBe(1);
+
+    await sdk.reset();
+
+    expect(sdk.userId).toBeNull();
+    expect(sdk.currentAttributes).toEqual({});
+    expect(sdk.currentCustomIds).toEqual({});
+    expect(sdk.currentStudyId).toBeNull();
+    expect(sdk.queueSize).toBe(0);
+    expect(sdk.currentVisitorId).not.toBe(previousVisitorId);
+    expect(localStorage.getItem("insightfull_visitor_id")).toBe(sdk.currentVisitorId);
+    await sdk.destroy();
   });
 
   it("track queues an event", () => {
@@ -217,6 +287,43 @@ describe("InsightfullSDK", () => {
     void sdk.destroy();
   });
 
+  it("applies appearance options and tracks pill-driven display state", async () => {
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([makeStudy()]));
+    const sdk = InsightfullSDK.init({
+      appearance: {
+        height: 720,
+        minimizedLabel: "Continue research",
+        placement: "bottom-left",
+        width: 480,
+      },
+      autoTrack: false,
+      clientId: "env_test",
+    });
+    await waitForSdkConfig();
+
+    sdk.track("checkout_completed");
+
+    const host = document.getElementById("insightfull-study-1");
+    expect(host?.style.left).toBe("20px");
+    expect(host?.style.width).toBe("480px");
+    expect(host?.style.height).toBe("720px");
+    expect(sdk.currentStudyId).toBe(1);
+    expect(sdk.currentStudyDisplayState).toBe("expanded");
+
+    sdk.minimizeStudy();
+    expect(sdk.currentStudyDisplayState).toBe("minimized");
+    const pill = host?.querySelector<HTMLButtonElement>('[data-role="insightfull-minimized-pill"]');
+    expect(pill?.textContent).toContain("Continue research");
+    pill?.click();
+    expect(sdk.currentStudyDisplayState).toBe("expanded");
+
+    sdk.dismissStudy();
+    expect(document.getElementById("insightfull-study-1")).toBeNull();
+    expect(sdk.currentStudyId).toBeNull();
+    expect(sdk.currentStudyDisplayState).toBeNull();
+    await sdk.destroy();
+  });
+
   it("calls a custom renderer with iframeUrl, study, and context when a trigger matches", async () => {
     const study = makeStudy({
       id: 7,
@@ -243,6 +350,9 @@ describe("InsightfullSDK", () => {
     expect(payload?.study).toBe(study);
     expect(payload?.iframeUrl).toContain("https://insightfull.ai/study/custom-survey?ctx=");
     expect(payload?.registerIframeBridge).toEqual(expect.any(Function));
+    expect(payload?.dismiss).toEqual(expect.any(Function));
+    expect(payload?.expand).toEqual(expect.any(Function));
+    expect(payload?.minimize).toEqual(expect.any(Function));
     expect(payload?.context).toMatchObject({
       visitorId: sdk.currentVisitorId,
       userId: "user-123",
@@ -259,6 +369,155 @@ describe("InsightfullSDK", () => {
     });
 
     void sdk.destroy();
+  });
+
+  it("launches a requested study directly and keeps its single-use token out of host state", async () => {
+    const study = makeStudy({
+      id: 27,
+      shareUrl: "direct-live-app",
+      title: "Checkout interview",
+    });
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([study]));
+    const renderStudy = vi.fn<InsightfullStudyRenderer>();
+    window.history.replaceState(
+      {},
+      "",
+      "/billing?coupon=SAVE&instfl_study=direct-live-app#instfl_agent=signed-token",
+    );
+
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      autoTrack: false,
+      renderStudy,
+    });
+    await waitForSdkConfig();
+
+    expect(renderStudy).toHaveBeenCalledTimes(1);
+    const payload = renderStudy.mock.calls[0]?.[0];
+    expect(payload?.context).toMatchObject({
+      agentLaunchToken: "signed-token",
+      source: "in_app",
+      triggerEvent: "direct_launch",
+    });
+    const iframeUrl = new URL(payload?.iframeUrl ?? "https://example.invalid");
+    expect(iframeUrl.hash).toBe("#instfl_agent=signed-token");
+    const encodedContext = iframeUrl.searchParams.get("ctx");
+    expect(JSON.parse(atob(encodedContext ?? ""))).not.toHaveProperty("agentLaunchToken");
+    expect(window.location.pathname).toBe("/billing");
+    expect(window.location.search).toBe("?coupon=SAVE&instfl_study=direct-live-app");
+    expect(window.location.hash).toBe("");
+
+    sdk.track("checkout_completed");
+    expect(renderStudy).toHaveBeenCalledTimes(1);
+    await sdk.destroy();
+  });
+
+  it("uses one display-state controller for host calls and custom renderers", async () => {
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([makeStudy()]));
+    const displayStateListener = vi.fn();
+    const rendererCleanup = vi.fn();
+    const renderStudy = vi.fn<InsightfullStudyRenderer>((payload) => {
+      payload.onDisplayStateChange(displayStateListener);
+      return rendererCleanup;
+    });
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      autoTrack: false,
+      renderStudy,
+    });
+    await waitForSdkConfig();
+
+    sdk.track("checkout_completed");
+    expect(displayStateListener).toHaveBeenCalledWith("expanded");
+    expect(sdk.currentStudyDisplayState).toBe("expanded");
+
+    const payload = renderStudy.mock.calls[0]?.[0];
+    payload?.minimize();
+    payload?.expand();
+    expect(displayStateListener).toHaveBeenNthCalledWith(2, "minimized");
+    expect(displayStateListener).toHaveBeenNthCalledWith(3, "expanded");
+
+    sdk.dismissStudy();
+    expect(rendererCleanup).toHaveBeenCalledTimes(1);
+    expect(sdk.currentStudyId).toBeNull();
+    sdk.minimizeStudy();
+    expect(displayStateListener).toHaveBeenCalledTimes(3);
+    await sdk.destroy();
+  });
+
+  it("forwards verified iframe display requests to a custom renderer", async () => {
+    const study = makeStudy({ id: 17, shareUrl: "custom-survey" });
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([study]));
+    const displayStateListener = vi.fn();
+    let iframe: HTMLIFrameElement | undefined;
+    let nonce: string | undefined;
+    const renderStudy = vi.fn<InsightfullStudyRenderer>((payload) => {
+      iframe = document.createElement("iframe");
+      iframe.src = payload.iframeUrl;
+      document.body.appendChild(iframe);
+      nonce = payload.context.iframeBridge?.nonce;
+      payload.registerIframeBridge(iframe);
+      payload.onDisplayStateChange(displayStateListener);
+    });
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      apiBase: "https://iframe.example.com",
+      autoTrack: false,
+      renderStudy,
+    });
+    await waitForSdkConfig();
+    sdk.track("checkout_completed");
+
+    window.dispatchEvent(
+      new MessageEvent("message", {
+        data: {
+          nonce,
+          state: "minimized",
+          studyId: 17,
+          type: "insightfull.iframe_display_state",
+          version: 1,
+        },
+        origin: "https://iframe.example.com",
+        source: iframe?.contentWindow ?? null,
+      }),
+    );
+
+    expect(displayStateListener).toHaveBeenLastCalledWith("minimized");
+    expect(sdk.currentStudyDisplayState).toBe("minimized");
+    await sdk.destroy();
+  });
+
+  it("cleans up the previous custom renderer before displaying another study", async () => {
+    const firstStudy = makeStudy({
+      id: 21,
+      triggers: [{ eventName: "first_event", filters: [], isActive: true, priority: 0 }],
+    });
+    const secondStudy = makeStudy({
+      id: 22,
+      triggers: [{ eventName: "second_event", filters: [], isActive: true, priority: 0 }],
+    });
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([firstStudy, secondStudy]));
+    const firstCleanup = vi.fn();
+    const secondCleanup = vi.fn();
+    const renderStudy = vi
+      .fn<InsightfullStudyRenderer>()
+      .mockReturnValueOnce(firstCleanup)
+      .mockReturnValueOnce(secondCleanup);
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      autoTrack: false,
+      renderStudy,
+    });
+    await waitForSdkConfig();
+
+    sdk.track("first_event");
+    sdk.track("second_event");
+
+    expect(firstCleanup).toHaveBeenCalledTimes(1);
+    expect(secondCleanup).not.toHaveBeenCalled();
+    expect(sdk.currentStudyId).toBe(22);
+    await sdk.destroy();
+    expect(secondCleanup).toHaveBeenCalledTimes(1);
   });
 
   it("validates and passes explicit hostContext through the launch and iframe URL", async () => {

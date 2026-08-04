@@ -13,8 +13,18 @@ export interface StudyTrigger {
 }
 
 /** A filter predicate evaluated against user attributes or custom IDs. */
+export type TriggerFilterOperator =
+  | "contains"
+  | "equals"
+  | "exists"
+  | "greater_than"
+  | "less_than"
+  | "not_contains"
+  | "not_equals"
+  | "not_exists";
+
 export interface TriggerFilter {
-  operator: "equals" | "exists";
+  operator: TriggerFilterOperator;
   property: string;
   value?: unknown;
 }

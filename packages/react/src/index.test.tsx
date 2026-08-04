@@ -13,6 +13,9 @@ const sdkMocks = vi.hoisted(() => {
     destroy: vi.fn<() => Promise<void>>(),
     setAttribute: vi.fn<(key: string, value: unknown) => void>(),
     setCustomId: vi.fn<(key: string, value: string) => void>(),
+    ready: vi.fn<() => Promise<void>>(),
+    status: "ready" as "destroyed" | "initializing" | "ready" | "unavailable",
+    initializationError: null as Error | null,
   };
 
   return {
@@ -22,6 +25,7 @@ const sdkMocks = vi.hoisted(() => {
 });
 
 vi.mock("@insightfull/web-research-sdk", () => ({
+  InsightfullInitializationError: class InsightfullInitializationError extends Error {},
   InsightfullSDK: {
     init: sdkMocks.init,
   },
@@ -36,6 +40,9 @@ function Wrapper({ children }: { children: React.ReactNode }) {
 describe("InsightfullProvider", () => {
   beforeEach(() => {
     vi.clearAllMocks();
+    sdkMocks.instance.ready.mockResolvedValue();
+    sdkMocks.instance.status = "ready";
+    sdkMocks.instance.initializationError = null;
   });
 
   afterEach(() => {
@@ -94,6 +101,77 @@ describe("InsightfullProvider", () => {
 
     expect(mockedInit).toHaveBeenCalledTimes(1);
   });
+
+  it("does not reinitialize for equivalent inline option values", async () => {
+    const { rerender } = render(
+      <InsightfullProvider clientId="env_test" options={{ autoTrack: false }}>
+        {" "}
+      </InsightfullProvider>,
+    );
+
+    await vi.waitFor(() => {
+      expect(mockedInit).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(
+      <InsightfullProvider clientId="env_test" options={{ autoTrack: false }}>
+        {" "}
+      </InsightfullProvider>,
+    );
+
+    expect(mockedInit).toHaveBeenCalledTimes(1);
+    expect(sdkMocks.instance.destroy).not.toHaveBeenCalled();
+  });
+
+  it("destroys and reinitializes when the client ID changes", async () => {
+    const { rerender } = render(<InsightfullProvider clientId="env_first"> </InsightfullProvider>);
+    await vi.waitFor(() => {
+      expect(mockedInit).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(<InsightfullProvider clientId="env_second"> </InsightfullProvider>);
+
+    await vi.waitFor(() => {
+      expect(sdkMocks.instance.destroy).toHaveBeenCalledTimes(1);
+      expect(mockedInit).toHaveBeenCalledTimes(2);
+    });
+    expect(mockedInit).toHaveBeenLastCalledWith(
+      expect.objectContaining({ clientId: "env_second" }),
+    );
+  });
+
+  it("reinitializes when an appearance value changes", async () => {
+    const { rerender } = render(
+      <InsightfullProvider clientId="env_test" options={{ appearance: { accentColor: "#0f766e" } }}>
+        {" "}
+      </InsightfullProvider>,
+    );
+    await vi.waitFor(() => {
+      expect(mockedInit).toHaveBeenCalledTimes(1);
+    });
+
+    rerender(
+      <InsightfullProvider clientId="env_test" options={{ appearance: { accentColor: "#7c3aed" } }}>
+        {" "}
+      </InsightfullProvider>,
+    );
+
+    await vi.waitFor(() => {
+      expect(sdkMocks.instance.destroy).toHaveBeenCalledTimes(1);
+      expect(mockedInit).toHaveBeenCalledTimes(2);
+    });
+  });
+
+  it("destroys the SDK when the provider unmounts", async () => {
+    const { unmount } = render(<InsightfullProvider clientId="env_test"> </InsightfullProvider>);
+    await vi.waitFor(() => {
+      expect(mockedInit).toHaveBeenCalledTimes(1);
+    });
+
+    unmount();
+
+    expect(sdkMocks.instance.destroy).toHaveBeenCalledTimes(1);
+  });
 });
 
 describe("useInsightfull", () => {
@@ -101,6 +179,8 @@ describe("useInsightfull", () => {
     const { result } = renderHook(() => useInsightfull());
     expect(result.current.sdk).toBeNull();
     expect(result.current.isReady).toBe(false);
+    expect(result.current.status).toBe("idle");
+    expect(result.current.error).toBeNull();
   });
 
   it("returns initialized sdk inside provider", async () => {
@@ -111,6 +191,7 @@ describe("useInsightfull", () => {
     await vi.waitFor(() => {
       expect(result.current.isReady).toBe(true);
       expect(result.current.sdk).not.toBeNull();
+      expect(result.current.status).toBe("ready");
     });
   });
 
@@ -125,5 +206,23 @@ describe("useInsightfull", () => {
 
     result.current.sdk!.track("test_event");
     expect(sdkMocks.instance.track).toHaveBeenCalledWith("test_event");
+  });
+
+  it("exposes an unavailable configuration without hiding the SDK instance", async () => {
+    const unavailableError = new Error("Environment unavailable");
+    sdkMocks.instance.status = "unavailable";
+    sdkMocks.instance.initializationError = unavailableError;
+    sdkMocks.instance.ready.mockRejectedValueOnce(unavailableError);
+
+    const { result } = renderHook(() => useInsightfull(), {
+      wrapper: Wrapper,
+    });
+
+    await vi.waitFor(() => {
+      expect(result.current.status).toBe("unavailable");
+    });
+    expect(result.current.sdk).not.toBeNull();
+    expect(result.current.isReady).toBe(false);
+    expect(result.current.error).toBe(unavailableError);
   });
 });

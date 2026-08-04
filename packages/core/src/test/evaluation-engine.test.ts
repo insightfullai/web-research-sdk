@@ -168,6 +168,25 @@ describe("matchesFilter", () => {
     expect(matchesFilter(filter, { a: {} }, {})).toBe(false);
   });
 
+  it.each([
+    ["not_equals", "plan", { plan: "free" }, "pro", true],
+    ["not_equals", "plan", { plan: "pro" }, "pro", false],
+    ["not_exists", "plan", {}, undefined, true],
+    ["not_exists", "plan", { plan: "pro" }, undefined, false],
+    ["contains", "roles", { roles: ["admin", "researcher"] }, "admin", true],
+    ["contains", "roles", { roles: ["researcher"] }, "admin", false],
+    ["contains", "company", { company: "Insightfull Labs" }, "full", true],
+    ["not_contains", "company", { company: "Insightfull Labs" }, "Sprig", true],
+    ["not_contains", "company", { company: "Insightfull Labs" }, "full", false],
+    ["greater_than", "seats", { seats: 25 }, 10, true],
+    ["greater_than", "seats", { seats: 10 }, 10, false],
+    ["greater_than", "seats", { seats: "25" }, 10, false],
+    ["less_than", "seats", { seats: 5 }, 10, true],
+    ["less_than", "seats", { seats: 10 }, 10, false],
+  ] as const)("evaluates %s for %s", (operator, property, attributes, value, expected) => {
+    expect(matchesFilter({ operator, property, value }, attributes, {})).toBe(expected);
+  });
+
   it("filter evaluation — all filters must match", () => {
     const study = makeStudy({
       triggers: [
@@ -361,6 +380,44 @@ describe("evaluateTriggers with matchOn", () => {
     const result = evaluateTriggers("pageview", {}, {}, [study], defaultGlobalSettings);
 
     expect(result).toBeNull();
+  });
+
+  it("applies audience filters to URL triggers", () => {
+    const study = makeStudy({
+      triggers: [
+        {
+          eventName: "/pricing",
+          filters: [
+            { operator: "equals", property: "plan", value: "free" },
+            { operator: "greater_than", property: "seats", value: 2 },
+          ],
+          isActive: true,
+          matchOn: "url",
+          priority: 1,
+        },
+      ],
+    });
+
+    expect(
+      evaluateTriggers(
+        "pageview",
+        { plan: "free", seats: 3 },
+        {},
+        [study],
+        defaultGlobalSettings,
+        "/pricing",
+      ),
+    ).toBe(study);
+    expect(
+      evaluateTriggers(
+        "pageview",
+        { plan: "pro", seats: 3 },
+        {},
+        [study],
+        defaultGlobalSettings,
+        "/pricing",
+      ),
+    ).toBeNull();
   });
 
   it("defaults to event matching when matchOn is undefined", () => {
