@@ -59,6 +59,7 @@ export type {
   StudyTrigger,
   TrackEvent,
   TriggerFilter,
+  TriggerFilterOperator,
 } from "./types/index.js";
 export type {
   HostContext,
