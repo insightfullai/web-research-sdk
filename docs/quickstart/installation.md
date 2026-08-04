@@ -96,7 +96,10 @@ sdk.status;
 sdk.initializationError;
 sdk.currentStudyId;
 sdk.currentStudyDisplayState;
+sdk.version;
 ```
+
+If verification or delivery does not behave as expected, follow the [troubleshooting and launch diagnostics guide](../guides/troubleshooting.md).
 
 ## Configuration
 

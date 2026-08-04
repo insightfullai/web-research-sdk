@@ -24,6 +24,7 @@ Choose the shortest path that matches your application:
 - [SDK API](reference/sdk-api.md)
 - [Explicit host context](../packages/core/README.md#explicit-host-context)
 - [Local packed-package validation](quickstart/local-integration-runbook.md)
+- [Troubleshooting and launch diagnostics](guides/troubleshooting.md)
 - [Recorder package](../packages/recorder/README.md)
 - [Release-artifact integration lab](../packages/test-app-react)
 

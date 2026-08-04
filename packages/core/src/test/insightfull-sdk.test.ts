@@ -88,6 +88,12 @@ describe("InsightfullSDK", () => {
     mockedFetchConfig.mockResolvedValue(makeConfig());
   });
 
+  it("exposes its version for host-side integration diagnostics", () => {
+    const sdk = InsightfullSDK.init({ clientId: "env_test" });
+
+    expect(sdk.version).toBe("1.0.0");
+  });
+
   it("init creates an instance", () => {
     const sdk = InsightfullSDK.init({ clientId: "env_test" });
     expect(sdk).toBeInstanceOf(InsightfullSDK);

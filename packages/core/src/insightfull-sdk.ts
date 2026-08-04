@@ -120,6 +120,10 @@ export class InsightfullSDK {
     return this._status;
   }
 
+  get version(): string {
+    return SDK_VERSION;
+  }
+
   get initializationError(): InsightfullInitializationError | null {
     return this._initializationError;
   }
@@ -539,7 +543,14 @@ export class InsightfullSDK {
   }
 
   private async flushBatch(batch: SdkEvent[]): Promise<void> {
-    await sendTelemetry(this.apiBase, this.clientId, this.visitorId, this._userId, batch);
+    await sendTelemetry(
+      this.apiBase,
+      this.clientId,
+      this.visitorId,
+      this._userId,
+      batch,
+      SDK_VERSION,
+    );
   }
 
   private evaluateAndShow(eventName: string, hostContext?: HostContextV1): void {

@@ -17,6 +17,9 @@ sdk.status;
 
 sdk.initializationError;
 // InsightfullInitializationError | null
+
+sdk.version;
+// SDK package version reported to Insightfull connection diagnostics
 ```
 
 Error codes:
