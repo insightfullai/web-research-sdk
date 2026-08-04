@@ -83,6 +83,7 @@ describe("InsightfullSDK", () => {
   beforeEach(() => {
     document.body.innerHTML = "";
     localStorage.clear();
+    window.history.replaceState({}, "", "/");
     vi.clearAllMocks();
     mockedFetchConfig.mockResolvedValue(makeConfig());
   });
@@ -362,6 +363,47 @@ describe("InsightfullSDK", () => {
     });
 
     void sdk.destroy();
+  });
+
+  it("launches a requested study directly and keeps its single-use token out of host state", async () => {
+    const study = makeStudy({
+      id: 27,
+      shareUrl: "direct-live-app",
+      title: "Checkout interview",
+    });
+    mockedFetchConfig.mockResolvedValueOnce(makeConfig([study]));
+    const renderStudy = vi.fn<InsightfullStudyRenderer>();
+    window.history.replaceState(
+      {},
+      "",
+      "/billing?coupon=SAVE&instfl_study=direct-live-app#instfl_agent=signed-token",
+    );
+
+    const sdk = InsightfullSDK.init({
+      clientId: "env_test",
+      autoTrack: false,
+      renderStudy,
+    });
+    await waitForSdkConfig();
+
+    expect(renderStudy).toHaveBeenCalledTimes(1);
+    const payload = renderStudy.mock.calls[0]?.[0];
+    expect(payload?.context).toMatchObject({
+      agentLaunchToken: "signed-token",
+      source: "in_app",
+      triggerEvent: "direct_launch",
+    });
+    const iframeUrl = new URL(payload?.iframeUrl ?? "https://example.invalid");
+    expect(iframeUrl.hash).toBe("#instfl_agent=signed-token");
+    const encodedContext = iframeUrl.searchParams.get("ctx");
+    expect(JSON.parse(atob(encodedContext ?? ""))).not.toHaveProperty("agentLaunchToken");
+    expect(window.location.pathname).toBe("/billing");
+    expect(window.location.search).toBe("?coupon=SAVE&instfl_study=direct-live-app");
+    expect(window.location.hash).toBe("");
+
+    sdk.track("checkout_completed");
+    expect(renderStudy).toHaveBeenCalledTimes(1);
+    await sdk.destroy();
   });
 
   it("uses one display-state controller for host calls and custom renderers", async () => {

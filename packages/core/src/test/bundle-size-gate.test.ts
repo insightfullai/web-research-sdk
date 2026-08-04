@@ -16,7 +16,7 @@ import { join, resolve } from "node:path";
 import { describe, expect, it } from "vitest";
 
 describe("Bundle size gate", () => {
-  it("total raw source size stays under 75KB", () => {
+  it("total raw source size stays under 77KB", () => {
     const srcDir = resolve(import.meta.dirname, "../");
 
     function collectTsFiles(dir: string): string[] {
@@ -44,10 +44,10 @@ describe("Bundle size gate", () => {
 
     const totalKB = totalBytes / 1024;
 
-    // The dependency-free host-context and participant bridge validators add
-    // privacy-boundary code while keeping the core free of schema libraries.
+    // The dependency-free host-context, participant bridge, and secure direct-launch
+    // code preserve privacy boundaries while keeping the core free of schema libraries.
     // The release build remains the authoritative compressed-size check.
-    expect(totalKB).toBeLessThan(75);
+    expect(totalKB).toBeLessThan(77);
   });
 
   it("index.ts re-exports all public API members", () => {

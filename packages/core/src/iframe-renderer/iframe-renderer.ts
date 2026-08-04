@@ -33,7 +33,8 @@ export interface RenderStudyOptions {
 }
 
 export function buildContextPayload(context: SdkContext): string {
-  const json = JSON.stringify(context);
+  const { agentLaunchToken: _agentLaunchToken, ...iframeContext } = context;
+  const json = JSON.stringify(iframeContext);
   try {
     return btoa(json);
   } catch {
@@ -50,7 +51,13 @@ export function buildStudyIframeUrl(
 ): string {
   const payload = buildContextPayload(context);
   const shareSlug = study.shareUrl ?? `id/${study.id}`;
-  return `${apiBase}/study/${shareSlug}?ctx=${encodeURIComponent(payload)}`;
+  const iframeUrl = `${apiBase}/study/${shareSlug}?ctx=${encodeURIComponent(payload)}`;
+  if (!context.agentLaunchToken) {
+    return iframeUrl;
+  }
+  const fragment = new URLSearchParams();
+  fragment.set("instfl_agent", context.agentLaunchToken);
+  return `${iframeUrl}#${fragment.toString()}`;
 }
 
 export function buildStudyRenderPayload(

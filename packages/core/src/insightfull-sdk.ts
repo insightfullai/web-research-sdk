@@ -85,6 +85,7 @@ export class InsightfullSDK {
   private customRendererCleanup: (() => void) | null = null;
   private activeStudyId: number | null = null;
   private activeStudyDisplayState: InsightfullIframeDisplayState | null = null;
+  private directLaunchActive = false;
   private destroyed = false;
 
   get baseApiUrl(): string {
@@ -304,6 +305,7 @@ export class InsightfullSDK {
     this.eventQueue.clear();
     this.cleanupActiveStudy();
     this.pendingTriggerEvaluations.length = 0;
+    this.directLaunchActive = false;
     this._userId = null;
     for (const key of Object.keys(this.customId)) {
       delete this.customId[key];
@@ -410,6 +412,7 @@ export class InsightfullSDK {
     this.config = config;
     this._status = "ready";
     this._initializationError = null;
+    this.launchDirectStudy();
     this.flushPendingTriggerEvaluations();
   }
 
@@ -512,6 +515,7 @@ export class InsightfullSDK {
     }
     this.activeStudyId = null;
     this.activeStudyDisplayState = null;
+    this.directLaunchActive = false;
   }
 
   private notifyActivityEvidence(message: InsightfullRecordingActivityEvidenceMessage): void {
@@ -539,6 +543,9 @@ export class InsightfullSDK {
   }
 
   private evaluateAndShow(eventName: string, hostContext?: HostContextV1): void {
+    if (this.directLaunchActive) {
+      return;
+    }
     if (!this.config) {
       this.pendingTriggerEvaluations.push({
         eventName,
@@ -563,7 +570,52 @@ export class InsightfullSDK {
     }
   }
 
-  private showStudy(study: StudyContent, triggerEvent: string, hostContext?: HostContextV1): void {
+  private launchDirectStudy(): void {
+    if (!this.config || typeof window === "undefined") {
+      return;
+    }
+    const launchUrl = new URL(window.location.href);
+    const shareUrl = launchUrl.searchParams.get("instfl_study")?.trim();
+    if (!shareUrl) {
+      return;
+    }
+
+    const fragmentValue = launchUrl.hash.slice(1);
+    const fragmentQueryIndex = fragmentValue.indexOf("?");
+    const fragmentPrefix =
+      fragmentQueryIndex >= 0 ? fragmentValue.slice(0, fragmentQueryIndex) : "";
+    const launchFragment = new URLSearchParams(
+      fragmentQueryIndex >= 0 ? fragmentValue.slice(fragmentQueryIndex + 1) : fragmentValue,
+    );
+    const agentLaunchToken =
+      launchFragment.get("instfl_agent")?.trim() ??
+      launchUrl.searchParams.get("instfl_agent")?.trim();
+    const study = this.config.studies.find((candidate) => candidate.shareUrl === shareUrl);
+    if (!study) {
+      return;
+    }
+
+    this.showStudy(study, "direct_launch", undefined, agentLaunchToken);
+    this.directLaunchActive = this.activeStudyId === study.id;
+    if (!agentLaunchToken) {
+      return;
+    }
+
+    launchUrl.searchParams.delete("instfl_agent");
+    launchFragment.delete("instfl_agent");
+    const remainingFragment = launchFragment.toString();
+    launchUrl.hash = fragmentPrefix
+      ? `${fragmentPrefix}${remainingFragment ? `?${remainingFragment}` : ""}`
+      : remainingFragment;
+    window.history.replaceState(window.history.state, "", launchUrl);
+  }
+
+  private showStudy(
+    study: StudyContent,
+    triggerEvent: string,
+    hostContext?: HostContextV1,
+    agentLaunchToken?: string,
+  ): void {
     this.cleanupActiveStudy();
     const iframeBridgeNonce = this.generateId();
     this.activeStudyId = study.id;
@@ -576,8 +628,9 @@ export class InsightfullSDK {
       iframeBridge: { nonce: iframeBridgeNonce, version: 1 },
       sdkEnvironmentId: this.clientId,
       sdkVersion: SDK_VERSION,
-      source: "web_sdk",
+      source: triggerEvent === "direct_launch" ? "in_app" : "web_sdk",
       triggerEvent,
+      ...(agentLaunchToken ? { agentLaunchToken } : {}),
       ...(hostContext ? { hostContext } : {}),
     };
 

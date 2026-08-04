@@ -189,6 +189,15 @@ describe("iframe renderer", () => {
     expect(decoded.source).toBe("web_sdk");
   });
 
+  it("keeps a single-use launch token in the iframe fragment instead of encoded context", () => {
+    const context = makeContext({ agentLaunchToken: "signed-token", source: "in_app" });
+    const iframeUrl = new URL(buildStudyIframeUrl("https://insightfull.ai", makeStudy(), context));
+
+    expect(iframeUrl.hash).toBe("#instfl_agent=signed-token");
+    const encodedContext = iframeUrl.searchParams.get("ctx");
+    expect(JSON.parse(atob(encodedContext ?? ""))).not.toHaveProperty("agentLaunchToken");
+  });
+
   it("removeStudy cleans up DOM", () => {
     const study = makeStudy({ id: 99 });
     const context = makeContext();
