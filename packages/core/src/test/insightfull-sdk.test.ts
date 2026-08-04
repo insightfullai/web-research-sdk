@@ -2,6 +2,7 @@ import { beforeEach, describe, expect, it, vi } from "vitest";
 import type { MockInstance } from "vitest";
 import { fetchConfig } from "../config-fetcher/config-fetcher.js";
 import { InsightfullInitializationError, InsightfullSDK } from "../insightfull-sdk.js";
+import { SDK_VERSION } from "../version.js";
 import type {
   InsightfullDeliveryEvaluation,
   InsightfullStudyRenderer,
@@ -96,7 +97,7 @@ describe("InsightfullSDK", () => {
   it("exposes its version for host-side integration diagnostics", () => {
     const sdk = InsightfullSDK.init({ clientId: "env_test" });
 
-    expect(sdk.version).toBe("1.0.0");
+    expect(sdk.version).toBe(SDK_VERSION);
   });
 
   it("init creates an instance", () => {
@@ -424,7 +425,7 @@ describe("InsightfullSDK", () => {
         version: 1,
       },
       sdkEnvironmentId: "env_test",
-      sdkVersion: "1.0.0",
+      sdkVersion: SDK_VERSION,
       source: "web_sdk",
       triggerEvent: "checkout_completed",
     });
@@ -514,7 +515,7 @@ describe("InsightfullSDK", () => {
         version: 1,
       },
       sdkEnvironmentId: "env_test",
-      sdkVersion: "1.0.0",
+      sdkVersion: SDK_VERSION,
       source: "web_sdk",
       triggerEvent: "checkout_completed",
     });
